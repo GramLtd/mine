@@ -57,6 +57,12 @@ input,textarea{font:inherit;color:var(--label)}
 .fan{position:absolute;inset:11%;border-radius:50%;overflow:hidden;
   background:radial-gradient(circle at 30% 25%,#8E8BFF 0%,#5E5CE6 35%,#3A2FA8 70%,#1E1760 100%);
   box-shadow:inset 0 2px 6px rgba(255,255,255,.35),inset 0 -12px 30px rgba(0,0,0,.35),0 20px 50px -10px rgba(94,92,230,.55)}
+.fan[data-skin="skin_gold"]{background:radial-gradient(circle at 30% 25%,#FFE9A3 0%,#F5B83D 35%,#B9770E 70%,#5C3A05 100%);box-shadow:inset 0 2px 6px rgba(255,255,255,.4),inset 0 -12px 30px rgba(0,0,0,.35),0 20px 50px -10px rgba(245,184,61,.55)}
+.fan[data-skin="skin_emerald"]{background:radial-gradient(circle at 30% 25%,#A6F4C5 0%,#30D158 35%,#138A3A 70%,#053D19 100%);box-shadow:inset 0 2px 6px rgba(255,255,255,.4),inset 0 -12px 30px rgba(0,0,0,.35),0 20px 50px -10px rgba(48,209,88,.5)}
+.fan[data-skin="skin_crimson"]{background:radial-gradient(circle at 30% 25%,#FFB3BF 0%,#FF375F 35%,#B0102F 70%,#4D0514 100%);box-shadow:inset 0 2px 6px rgba(255,255,255,.4),inset 0 -12px 30px rgba(0,0,0,.35),0 20px 50px -10px rgba(255,55,95,.5)}
+.fan[data-skin="skin_ice"]{background:radial-gradient(circle at 30% 25%,#FFFFFF 0%,#BDE6FF 35%,#5AC8FA 70%,#1A6E9E 100%);box-shadow:inset 0 2px 6px rgba(255,255,255,.6),inset 0 -12px 30px rgba(0,0,0,.25),0 20px 50px -10px rgba(90,200,250,.55)}
+.fan[data-skin="skin_black"]{background:radial-gradient(circle at 30% 25%,#6E6E73 0%,#2C2C2E 35%,#111 70%,#000 100%);box-shadow:inset 0 2px 6px rgba(255,255,255,.3),inset 0 -12px 30px rgba(0,0,0,.5),0 20px 50px -10px rgba(0,0,0,.6)}
+.swatch{width:32px;height:32px;border-radius:50%;flex:none;box-shadow:inset 0 1px 3px rgba(255,255,255,.4),0 0 0 .5px var(--sep)}
 .fan svg{animation:spin var(--spin,1.4s) linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 .fan::after{content:"";position:absolute;inset:0;border-radius:50%;
@@ -241,9 +247,13 @@ textarea{width:100%;min-height:140px;border:0;outline:none;background:var(--bg2)
 <!-- ============ МАГАЗИН ============ -->
 <section id="shop" class="page">
   <h1 class="large-title">Магазин</h1>
-  <div class="caption">За Telegram Stars</div>
-  <div class="group" id="slist"></div>
-  <p class="footnote">Оплата проходит внутри Telegram. Покупки — внутриигровые улучшения скорости майнинга.</p>
+  <div class="caption">Бусты и уровни</div>
+  <div class="group" id="s-boost"></div>
+  <div class="caption">Хранилище</div>
+  <div class="group" id="s-storage"></div>
+  <div class="caption">Скины вентилятора</div>
+  <div class="group" id="s-skin"></div>
+  <p class="footnote">Оплата Telegram Stars проходит внутри Telegram.</p>
 </section>
 
 <div id="admin-root"></div>
@@ -340,6 +350,7 @@ function render(s) {
   const n = s.next_level;
   $('upg').disabled = !n || s.balance < n.price;
   $('upginfo').textContent = n ? `Следующий уровень — ${n.hashrate} GH/s за ${n.price} ${s.coin}` : 'Достигнут максимальный уровень';
+  document.querySelector('.fan').dataset.skin = s.skin || '';
   document.querySelector('.fan').style.setProperty('--spin', (1.6 / (s.boost?.mult || 1)) + 's');
   if (s.is_admin && !adminLoaded) loadAdminUI();
   renderShop(s);
@@ -401,16 +412,29 @@ async function loadWdHist() {
 }
 
 /* ---------- магазин (Stars) ---------- */
-const SHOP_ICON = { boost2: ['bolt', 'var(--orange)'], boost3: ['bolt', 'var(--pink)'], level: ['up', 'var(--indigo)'] };
+const SHOP_ICON = { boost2: ['bolt', 'var(--orange)'], boost3: ['bolt', 'var(--pink)'], level: ['up', 'var(--indigo)'], storage12: ['bag', 'var(--blue)'], storage24: ['bag', 'var(--indigo)'] };
+const SKIN_BG = { skin_gold: '#F5B83D', skin_emerald: '#30D158', skin_crimson: '#FF375F', skin_ice: '#BDE6FF', skin_black: '#2C2C2E', '': '#5E5CE6' };
+function starBtn(it) { const b = el('button', { class: 'pill star num' }); b.innerHTML = TGSTAR; b.append(String(it.stars)); b.onclick = () => buy(it, b); return b; }
 function renderShop(s) {
-  const box = $('slist'); box.innerHTML = '';
+  ['boost', 'storage', 'skin'].forEach(c => $('s-' + c).innerHTML = '');
+  // базовый скин
+  const def = el('button', { class: 'pill', disabled: !s.skin ? '' : false }, !s.skin ? 'Надет' : 'Надеть'); def.onclick = () => wearSkin('');
+  $('s-skin').append(el('div', { class: 'cell' }, el('div', { class: 'swatch', style: `background:${SKIN_BG['']}` }), el('div', { class: 'tx' }, el('b', {}, 'Стандарт'), el('small', {}, 'Бесплатно')), def));
   s.shop.forEach(it => {
-    const [ic, bg] = SHOP_ICON[it.id] || ['star', 'var(--blue)'];
-    const b = el('button', { class: 'pill star num' }); b.innerHTML = TGSTAR; b.append(String(it.stars));
-    b.onclick = () => buy(it, b);
-    box.append(el('div', { class: 'cell' }, icon(ic, bg), el('div', { class: 'tx' }, el('b', {}, it.title), el('small', {}, it.desc)), b));
+    let lead, action;
+    if (it.cat === 'skin') {
+      lead = el('div', { class: 'swatch', style: `background:${SKIN_BG[it.id]}` });
+      if (s.skins.includes(it.id)) { action = el('button', { class: 'pill', disabled: s.skin === it.id ? '' : false }, s.skin === it.id ? 'Надет' : 'Надеть'); action.onclick = () => wearSkin(it.id); }
+      else action = starBtn(it);
+    } else {
+      const [ic, bg] = SHOP_ICON[it.id] || ['star', 'var(--blue)']; lead = icon(ic, bg);
+      const hrs = { storage12: 12, storage24: 24 }[it.id];
+      action = hrs && s.storage_hours >= hrs ? el('button', { class: 'pill', disabled: '' }, 'Есть') : starBtn(it);
+    }
+    $('s-' + it.cat).append(el('div', { class: 'cell' }, lead, el('div', { class: 'tx' }, el('b', {}, it.title), el('small', {}, it.desc)), action));
   });
 }
+async function wearSkin(id) { try { render(await api('/api/skin', 'POST', { skin: id })); hud('Скин применён'); } catch (e) { hud(e.message, false); } }
 async function buy(it, btn) {
   btn.disabled = true;
   try {
@@ -443,7 +467,7 @@ async function loadMissions() {
   r.missions.forEach(m => {
     const b = el('button', { class: 'pill', disabled: m.done ? '' : false }, m.done ? 'Готово' : 'Получить');
     b.onclick = async () => {
-      if (m.url) { tg.openTelegramLink(m.url); await new Promise(r => setTimeout(r, 1500)); }
+      if (m.url) { m.url.startsWith('https://t.me/') ? tg.openTelegramLink(m.url) : tg.openLink?.(m.url); await new Promise(r => setTimeout(r, 1500)); }
       try { await api('/api/missions/' + m.id, 'POST'); hud('Награда получена'); loadMissions(); render(await api('/api/state')); }
       catch (e) { hud(e.message, false); }
     };

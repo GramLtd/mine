@@ -37,6 +37,15 @@ def init():
             created REAL,
             refunded INTEGER DEFAULT 0
         );
+        CREATE TABLE IF NOT EXISTS missions(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT, url TEXT, chat TEXT, reward REAL,
+            active INTEGER DEFAULT 1, created REAL
+        );
+        CREATE TABLE IF NOT EXISTS mission_done(
+            user_id INTEGER, mission_id INTEGER, created REAL,
+            PRIMARY KEY(user_id, mission_id)
+        );
         CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT);
         CREATE TABLE IF NOT EXISTS withdrawals(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -51,7 +60,9 @@ def init():
         """)
         cols = {r["name"] for r in c.execute("PRAGMA table_info(users)")}
         for col, ddl in [("username", "TEXT"), ("boost_mult", "REAL DEFAULT 1"),
-                         ("boost_until", "REAL DEFAULT 0"), ("banned", "INTEGER DEFAULT 0")]:
+                         ("boost_until", "REAL DEFAULT 0"), ("banned", "INTEGER DEFAULT 0"),
+                         ("storage_hours", "REAL DEFAULT 0"), ("skins", "TEXT DEFAULT ''"),
+                         ("skin", "TEXT DEFAULT ''")]:
             if col not in cols:
                 c.execute(f"ALTER TABLE users ADD COLUMN {col} {ddl}")
 
@@ -214,3 +225,46 @@ def finish_withdrawal(wid, status, tx=None):
         if status == "rejected":
             c.execute("UPDATE users SET balance=balance+? WHERE id=?", (w["amount"], w["user_id"]))
         return dict(w)
+
+
+# --- задания от рекламодателей ---
+def missions_list(active_only=True):
+    with conn() as c:
+        sql = "SELECT * FROM missions" + (" WHERE active=1" if active_only else "") + " ORDER BY id DESC"
+        return [dict(r) for r in c.execute(sql)]
+
+
+def mission_get(mid):
+    with conn() as c:
+        r = c.execute("SELECT * FROM missions WHERE id=?", (mid,)).fetchone()
+        return dict(r) if r else None
+
+
+def mission_add(title, url, chat, reward):
+    with conn() as c:
+        return c.execute("INSERT INTO missions(title,url,chat,reward,created) VALUES(?,?,?,?,?)",
+                         (title, url, chat, reward, time.time())).lastrowid
+
+
+def mission_set_active(mid, active):
+    with conn() as c:
+        c.execute("UPDATE missions SET active=? WHERE id=?", (int(active), mid))
+
+
+def mission_done_ids(uid):
+    with conn() as c:
+        return {r[0] for r in c.execute("SELECT mission_id FROM mission_done WHERE user_id=?", (uid,))}
+
+
+def mission_complete(uid, mid) -> bool:
+    with conn() as c:
+        try:
+            c.execute("INSERT INTO mission_done VALUES(?,?,?)", (uid, mid, time.time()))
+            return True
+        except sqlite3.IntegrityError:
+            return False
+
+
+def mission_counts():
+    with conn() as c:
+        return {r[0]: r[1] for r in c.execute("SELECT mission_id, COUNT(*) FROM mission_done GROUP BY mission_id")}

@@ -11,7 +11,7 @@ from pydantic import BaseModel
 
 from . import db, game, settings, ton
 from .auth import current_user
-from .config import (LEVELS, DAILY_BONUS, CHANNEL_USERNAME, REF_BONUS_COINS, SHOP,
+from .config import (LEVELS, DAILY_BONUS, CHANNEL_USERNAME, REF_BONUS_COINS, SHOP, STORAGE_ITEMS,
                      ADMIN_IDS, ADMIN_USERNAMES)
 
 WEB = Path(__file__).resolve().parent.parent / "webapp"
@@ -76,12 +76,15 @@ def friends(tg=Depends(current_user)):
 @api.get("/api/missions")
 def missions(tg=Depends(current_user)):
     user = load(tg)
+    done = db.mission_done_ids(user["id"])
     return {"missions": [
         {"id": "daily", "title": "Ежедневный бонус", "reward": DAILY_BONUS,
          "done": time.time() - user["last_daily"] < 86400},
         *([{"id": "channel", "title": f"Подписка на {CHANNEL_USERNAME}",
             "reward": DAILY_BONUS * 5, "done": bool(user["channel_done"]),
             "url": f"https://t.me/{CHANNEL_USERNAME.lstrip('@')}"}] if CHANNEL_USERNAME else []),
+        *[{"id": f"m{m['id']}", "title": m["title"], "reward": m["reward"], "url": m["url"],
+           "done": m["id"] in done} for m in db.missions_list()],
     ]}
 
 
@@ -101,9 +104,36 @@ async def do_mission(mid: str, tg=Depends(current_user)):
             raise HTTPException(400, "Вы не подписаны")
         db.update(user["id"], channel_done=1)
         db.add_balance(user["id"], DAILY_BONUS * 5)
+    elif mid.startswith("m") and mid[1:].isdigit():
+        m = db.mission_get(int(mid[1:]))
+        if not m or not m["active"]:
+            raise HTTPException(404, "Задание не найдено")
+        if m["chat"]:
+            try:
+                member = await bot.get_chat_member(m["chat"], user["id"])
+            except Exception:
+                raise HTTPException(400, "Не удалось проверить подписку")
+            if member.status in ("left", "kicked"):
+                raise HTTPException(400, "Вы не подписаны")
+        if not db.mission_complete(user["id"], m["id"]):
+            raise HTTPException(400, "Уже выполнено")
+        db.add_balance(user["id"], m["reward"])
     else:
         raise HTTPException(404)
     return {"ok": True}
+
+
+class SkinIn(BaseModel):
+    skin: str
+
+
+@api.post("/api/skin")
+def set_skin(body: SkinIn, tg=Depends(current_user)):
+    user = load(tg)
+    if body.skin and body.skin not in (user.get("skins") or "").split(","):
+        raise HTTPException(400, "Скин не куплен")
+    db.update(user["id"], skin=body.skin)
+    return game.state(load(tg), is_admin(tg))
 
 
 # ---------- вывод ----------
@@ -151,7 +181,11 @@ async def stars_invoice(body: InvoiceIn, tg=Depends(current_user)):
     user = load(tg)
     if body.item not in SHOP:
         raise HTTPException(404, "Нет такого товара")
-    title, desc, price = SHOP[body.item]
+    title, desc, price, _cat = SHOP[body.item]
+    if body.item.startswith("skin_") and body.item in (user.get("skins") or "").split(","):
+        raise HTTPException(400, "Скин уже куплен")
+    if body.item in STORAGE_ITEMS and game.storage_hours(user) >= STORAGE_ITEMS[body.item]:
+        raise HTTPException(400, "Уже есть такое или большее хранилище")
     link = await bot.create_invoice_link(
         title=title, description=desc, payload=f"{body.item}:{user['id']}",
         currency="XTR", prices=[LabeledPrice(label=title, amount=price)], provider_token="")
@@ -300,6 +334,35 @@ def a_set_settings(body: SettingsIn, _=Depends(admin)):
     if body.withdraw_enabled is not None:
         db.set_setting("withdraw_enabled", "1" if body.withdraw_enabled else "0")
     return settings.all_settings()
+
+
+class MissionIn(BaseModel):
+    title: str
+    url: str
+    chat: str = ""      # @канал для проверки подписки (бот должен быть админом), можно пусто
+    reward: float
+
+
+@api.get("/api/admin/missions")
+def a_missions(_=Depends(admin)):
+    counts = db.mission_counts()
+    return {"missions": [{**m, "done_count": counts.get(m["id"], 0)} for m in db.missions_list(False)]}
+
+
+@api.post("/api/admin/missions")
+def a_mission_add(body: MissionIn, _=Depends(admin)):
+    if not body.title.strip() or not body.url.startswith(("https://", "http://")) or body.reward <= 0:
+        raise HTTPException(400, "Заполните название, ссылку (https://…) и награду")
+    return {"id": db.mission_add(body.title.strip(), body.url.strip(), body.chat.strip(), body.reward)}
+
+
+@api.post("/api/admin/missions/{mid}/toggle")
+def a_mission_toggle(mid: int, _=Depends(admin)):
+    m = db.mission_get(mid)
+    if not m:
+        raise HTTPException(404)
+    db.mission_set_active(mid, not m["active"])
+    return {"ok": True}
 
 
 # Интерфейс админки отдаётся только админам — у обычных игроков его нет даже в коде страницы.

@@ -44,6 +44,17 @@
     <textarea id="s-welcome" placeholder="HTML: <b>, <i>, <a href>. {coin} — название монеты"></textarea>
     <button class="btn primary" id="s-save" style="width:100%;margin-top:12px">Сохранить настройки</button>
 
+    <div class="caption" style="margin-top:30px">Платные задания (реклама каналов)</div>
+    <div class="group" id="mslist"></div>
+    <div class="group" style="margin-top:10px">
+      <label class="cell field noicon"><span>Название</span><input id="m-title" placeholder="Подпишись на …"></label>
+      <label class="cell field noicon"><span>Ссылка</span><input id="m-url" placeholder="https://t.me/…" autocapitalize="off"></label>
+      <label class="cell field noicon"><span>Проверка</span><input id="m-chat" placeholder="@канал (необязательно)" autocapitalize="off"></label>
+      <label class="cell field noicon"><span>Награда</span><input id="m-reward" type="number" step="any" placeholder="0.5"></label>
+    </div>
+    <button class="btn tinted" id="m-add" style="width:100%;margin-top:10px">Добавить задание</button>
+    <p class="footnote">Продавайте размещение каналам: они платят вам, игроки получают монеты за подписку. Для проверки подписки бот должен быть админом канала.</p>
+
     <div class="caption" style="margin-top:30px">Рассылка всем игрокам</div>
     <textarea id="bctext" placeholder="Текст рассылки. Поддерживается HTML: <b>, <i>, <a href>"></textarea>
     <button class="btn tinted" id="bcsend" style="width:100%;margin-top:12px">Отправить всем</button>
@@ -189,7 +200,24 @@ async function wdAct(w, action, tx) {
 }
 
 /* ---------- настройки ---------- */
+async function loadMs() {
+  const { missions } = await api('/api/admin/missions'); const box = $('mslist'); box.innerHTML = '';
+  if (!missions.length) box.append(el('div', { class: 'empty' }, 'Заданий нет'));
+  missions.forEach(m => {
+    const t = el('button', { class: 'pill', style: m.active ? 'color:var(--red)' : '' }, m.active ? 'Выкл' : 'Вкл');
+    t.onclick = async () => { await api(`/api/admin/missions/${m.id}/toggle`, 'POST'); loadMs(); };
+    box.append(el('div', { class: 'cell noicon' }, el('div', { class: 'tx' }, el('b', { style: m.active ? '' : 'opacity:.5' }, m.title),
+      el('small', {}, `+${m.reward} · выполнили ${m.done_count}${m.chat ? ' · проверка ' + m.chat : ''}`)), t));
+  });
+}
+$('m-add').onclick = async () => {
+  try {
+    await api('/api/admin/missions', 'POST', { title: $('m-title').value, url: $('m-url').value.trim(), chat: $('m-chat').value.trim(), reward: +$('m-reward').value });
+    ['m-title', 'm-url', 'm-chat', 'm-reward'].forEach(i => $(i).value = ''); hud('Задание добавлено'); loadMs();
+  } catch (e) { hud(e.message, false); }
+};
 async function loadSettings() {
+  loadMs();
   const s = await api('/api/admin/settings');
   $('s-coin').value = s.coin_name; $('s-min').value = s.min_withdraw; $('s-wden').checked = s.withdraw_enabled; $('s-welcome').value = s.welcome_text;
 }

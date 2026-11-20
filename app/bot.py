@@ -65,6 +65,8 @@ async def admin_cmd(msg: Message):
 async def pre_checkout(q: PreCheckoutQuery):
     item, _, uid = q.invoice_payload.partition(":")
     ok = item in SHOP and uid == str(q.from_user.id) and q.total_amount == SHOP[item][2]
+    if ok and item.startswith("skin_") and item in (db.get(q.from_user.id) or {}).get("skins", ""):
+        ok = False  # скин уже куплен
     user = db.get(q.from_user.id)
     if ok and user and not user.get("banned"):
         await q.answer(ok=True)

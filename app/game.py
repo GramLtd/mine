@@ -1,7 +1,7 @@
 import time
 from . import db
 from .config import (LEVELS, COIN_PER_GH_PER_SEC, STORAGE_HOURS, REF_HASH_BONUS,
-                     REF_HASH_BONUS_MAX, SHOP)
+                     REF_HASH_BONUS_MAX, SHOP, STORAGE_ITEMS)
 from . import settings
 
 
@@ -15,10 +15,14 @@ def boost(user, now=None) -> float:
     return user.get("boost_mult") or 1 if (user.get("boost_until") or 0) > now else 1
 
 
+def storage_hours(user) -> float:
+    return max(STORAGE_HOURS, user.get("storage_hours") or 0)
+
+
 def pending(user, now=None) -> float:
     """Начисление за период [last_claim, now] с учётом буста, который мог закончиться посередине."""
     now = now or time.time()
-    start = max(user["last_claim"], now - STORAGE_HOURS * 3600)
+    start = max(user["last_claim"], now - storage_hours(user) * 3600)
     if now <= start:
         return 0.0
     secs = now - start
@@ -46,6 +50,13 @@ def apply_item(uid: int, item: str):
         cur_until = user["boost_until"] if user["boost_until"] > now and user["boost_mult"] == mult else now
         db.update(uid, balance=user["balance"] + acc, last_claim=now,
                   boost_mult=mult, boost_until=cur_until + 86400)
+    elif item in STORAGE_ITEMS:
+        settle(user, now)
+        db.update(uid, storage_hours=max(storage_hours(user), STORAGE_ITEMS[item]))
+    elif item.startswith("skin_"):
+        owned = set(filter(None, (user.get("skins") or "").split(",")))
+        owned.add(item)
+        db.update(uid, skins=",".join(sorted(owned)), skin=item)
     elif item == "level":
         if user["level"] + 1 < len(LEVELS):
             settle(user, now)
@@ -68,11 +79,13 @@ def state(user, is_admin=False) -> dict:
         "pending": pending(user, now),
         "hashrate": hr,
         "rate_per_sec": hr * COIN_PER_GH_PER_SEC,
-        "storage_hours": STORAGE_HOURS,
+        "storage_hours": storage_hours(user),
+        "skins": [x for x in (user.get("skins") or "").split(",") if x],
+        "skin": user.get("skin") or "",
         "level": lvl + 1,
         "max_level": len(LEVELS),
         "boost": {"mult": b, "until": user["boost_until"]} if b > 1 else None,
         "next_level": {"hashrate": nxt[0], "price": nxt[1]} if nxt else None,
-        "shop": [{"id": k, "title": t, "desc": d, "stars": p} for k, (t, d, p) in SHOP.items()],
+        "shop": [{"id": k, "title": t, "desc": d, "stars": p, "cat": c} for k, (t, d, p, c) in SHOP.items()],
         "is_admin": is_admin,
     }
