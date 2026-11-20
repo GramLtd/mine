@@ -493,7 +493,8 @@ def tonconnect_manifest():
 
 @api.get("/")
 def index():
-    return FileResponse(WEB / "index.html")
+    # Telegram сильно кеширует WebApp — без этого игроки видят старую версию после обновления
+    return FileResponse(WEB / "index.html", headers={"Cache-Control": "no-store, must-revalidate"})
 
 
 api.mount("/static", StaticFiles(directory=WEB), name="static")
