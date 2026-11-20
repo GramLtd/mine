@@ -9,12 +9,13 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import db, game
+from . import db, game, settings, ton
 from .auth import current_user
 from .config import (LEVELS, DAILY_BONUS, CHANNEL_USERNAME, REF_BONUS_COINS, SHOP,
                      ADMIN_IDS, ADMIN_USERNAMES)
 
 WEB = Path(__file__).resolve().parent.parent / "webapp"
+ADMIN_UI = Path(__file__).resolve().parent / "admin_ui"  # не публикуется как статика
 api = FastAPI()
 bot = None  # выставляется из main.py
 log = logging.getLogger("hashfan")
@@ -103,6 +104,41 @@ async def do_mission(mid: str, tg=Depends(current_user)):
     else:
         raise HTTPException(404)
     return {"ok": True}
+
+
+# ---------- вывод ----------
+class WithdrawIn(BaseModel):
+    amount: float
+    address: str
+
+
+@api.get("/api/withdrawals")
+def my_withdrawals(tg=Depends(current_user)):
+    return {"withdrawals": db.withdrawals(uid=load(tg)["id"], limit=20)}
+
+
+@api.post("/api/withdraw")
+async def withdraw(body: WithdrawIn, tg=Depends(current_user)):
+    user = load(tg)
+    if not settings.withdraw_enabled():
+        raise HTTPException(400, "Вывод временно недоступен")
+    address = body.address.strip()
+    if not ton.valid_address(address):
+        raise HTTPException(400, "Неверный TON-адрес")
+    amount = round(body.amount, 4)
+    if amount < settings.min_withdraw():
+        raise HTTPException(400, f"Минимум {settings.min_withdraw():g} {settings.coin()}")
+    game.settle(user)
+    wid = db.create_withdrawal(user["id"], amount, address)
+    if wid is None:
+        raise HTTPException(400, "Недостаточно средств или уже есть заявка в обработке")
+    for aid in ADMIN_IDS:
+        try:
+            await bot.send_message(aid, f"💸 Заявка #{wid}: {amount:g} {settings.coin()} от "
+                                        f"{user['name']} (<code>{user['id']}</code>)\n<code>{address}</code>")
+        except Exception:
+            pass
+    return {"ok": True, "id": wid, **game.state(load(tg), is_admin(tg))}
 
 
 # ---------- Telegram Stars ----------
@@ -205,6 +241,71 @@ async def a_refund(charge_id: str, _=Depends(admin)):
     await bot.refund_star_payment(user_id=p["user_id"], telegram_payment_charge_id=charge_id)
     db.mark_refunded(charge_id)
     return {"ok": True}
+
+
+@api.get("/api/admin/withdrawals")
+def a_withdrawals(status: str = "pending", _=Depends(admin)):
+    return {"withdrawals": db.withdrawals(status=status or None, limit=100)}
+
+
+class WdAction(BaseModel):
+    action: str          # paid | rejected
+    tx: str | None = None
+
+
+@api.post("/api/admin/withdrawals/{wid}")
+async def a_wd_action(wid: int, body: WdAction, _=Depends(admin)):
+    if body.action not in ("paid", "rejected"):
+        raise HTTPException(400, "Неизвестное действие")
+    w = db.finish_withdrawal(wid, body.action, body.tx)
+    if not w:
+        raise HTTPException(400, "Заявка не найдена или уже обработана")
+    text = (f"✅ Вывод {w['amount']:g} {settings.coin()} отправлен на ваш TON-кошелёк."
+            if body.action == "paid" else
+            f"↩️ Заявка на вывод {w['amount']:g} {settings.coin()} отклонена, монеты возвращены на баланс.")
+    if body.action == "paid" and body.tx:
+        text += f"\nТранзакция: https://tonviewer.com/transaction/{body.tx}"
+    try:
+        await bot.send_message(w["user_id"], text)
+    except Exception:
+        pass
+    return {"ok": True}
+
+
+@api.get("/api/admin/settings")
+def a_get_settings(_=Depends(admin)):
+    return settings.all_settings()
+
+
+class SettingsIn(BaseModel):
+    coin_name: str | None = None
+    welcome_text: str | None = None
+    min_withdraw: float | None = None
+    withdraw_enabled: bool | None = None
+
+
+@api.post("/api/admin/settings")
+def a_set_settings(body: SettingsIn, _=Depends(admin)):
+    if body.coin_name is not None:
+        name = body.coin_name.strip()
+        if not 1 <= len(name) <= 16:
+            raise HTTPException(400, "Название монеты: 1–16 символов")
+        db.set_setting("coin_name", name)
+    if body.welcome_text is not None:
+        if not body.welcome_text.strip() or len(body.welcome_text) > 3500:
+            raise HTTPException(400, "Текст приветствия: от 1 до 3500 символов")
+        db.set_setting("welcome_text", body.welcome_text)
+    if body.min_withdraw is not None:
+        db.set_setting("min_withdraw", max(0.0001, body.min_withdraw))
+    if body.withdraw_enabled is not None:
+        db.set_setting("withdraw_enabled", "1" if body.withdraw_enabled else "0")
+    return settings.all_settings()
+
+
+# Интерфейс админки отдаётся только админам — у обычных игроков его нет даже в коде страницы.
+@api.get("/api/admin/ui")
+def a_ui(_=Depends(admin)):
+    return {"html": (ADMIN_UI / "admin.html").read_text(encoding="utf-8")}
 
 
 # ---------- статика ----------

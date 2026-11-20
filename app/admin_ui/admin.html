@@ -1,0 +1,201 @@
+<!-- ============ АДМИН ============ -->
+<section id="admin" class="page">
+  <h1 class="large-title">Админ</h1>
+  <div class="seg" id="aseg">
+    <button data-a="overview" class="on">Обзор</button>
+    <button data-a="users">Игроки</button>
+    <button data-a="wd">Выводы</button>
+    <button data-a="pays">Stars</button>
+    <button data-a="set">Ещё</button>
+  </div>
+
+  <div id="a-overview" class="apane">
+    <div class="grid" id="stats"></div>
+  </div>
+
+  <div id="a-users" class="apane" hidden>
+    <label class="search"><svg><use href="#i-search"/></svg><input id="uq" placeholder="Имя, @username или ID" enterkeyhint="search"></label>
+    <div class="group" id="ulist"></div>
+  </div>
+
+  <div id="a-pays" class="apane" hidden>
+    <div class="group" id="plist"></div>
+  </div>
+
+  <div id="a-wd" class="apane" hidden>
+    <div class="seg" id="wdseg" style="margin-bottom:12px">
+      <button data-s="pending" class="on">Ожидают</button><button data-s="paid">Выплачены</button><button data-s="rejected">Отклонены</button>
+    </div>
+    <div class="group" id="wdlist"></div>
+    <p class="footnote">Отправьте TON на адрес вручную со своего кошелька, затем нажмите «Выплачено» — игрок получит уведомление. «Отклонить» вернёт монеты на баланс.</p>
+  </div>
+
+  <div id="a-set" class="apane" hidden>
+    <div class="caption" style="margin-top:0">Монета</div>
+    <div class="group">
+      <label class="cell field noicon"><span>Название</span><input id="s-coin" maxlength="16" placeholder="HASH"></label>
+    </div>
+    <div class="caption">Вывод</div>
+    <div class="group">
+      <div class="cell field noicon"><span>Вывод включён</span><label class="sw"><input type="checkbox" id="s-wden"><span></span></label></div>
+      <label class="cell field noicon"><span>Минимум</span><input id="s-min" type="number" step="any" inputmode="decimal"></label>
+    </div>
+    <div class="caption">Приветствие в боте (/start)</div>
+    <textarea id="s-welcome" placeholder="HTML: <b>, <i>, <a href>. {coin} — название монеты"></textarea>
+    <button class="btn primary" id="s-save" style="width:100%;margin-top:12px">Сохранить настройки</button>
+
+    <div class="caption" style="margin-top:30px">Рассылка всем игрокам</div>
+    <textarea id="bctext" placeholder="Текст рассылки. Поддерживается HTML: <b>, <i>, <a href>"></textarea>
+    <button class="btn tinted" id="bcsend" style="width:100%;margin-top:12px">Отправить всем</button>
+    <p class="footnote">~20 сообщений в секунду. По окончании бот пришлёт отчёт.</p>
+  </div>
+</section>
+
+<!-- ============ ЛИСТ РЕДАКТИРОВАНИЯ ============ -->
+<div class="scrim" id="scrim"></div>
+<div class="sheet" id="sheet">
+  <div class="grabber"></div>
+  <div class="sheet-head"><button id="sh-cancel">Отмена</button><h3 id="sh-title">Игрок</h3><button id="sh-save" style="font-weight:600">Готово</button></div>
+  <div class="caption">Профиль</div>
+  <div class="group" id="sh-info"></div>
+  <div class="caption">Изменить</div>
+  <div class="group">
+    <label class="cell field noicon"><span>Баланс</span><input id="e-bal" type="number" step="any" inputmode="decimal"></label>
+    <label class="cell field noicon"><span>Уровень</span><input id="e-lvl" type="number" min="1" inputmode="numeric"></label>
+    <div class="cell field noicon"><span>Заблокирован</span><label class="sw"><input type="checkbox" id="e-ban"><span></span></label></div>
+  </div>
+  <div class="caption">Выдать буст</div>
+  <div class="group">
+    <label class="cell field noicon"><span>Множитель</span><input id="e-bm" type="number" step="0.5" min="1" placeholder="2"></label>
+    <label class="cell field noicon"><span>Часов</span><input id="e-bh" type="number" min="0" placeholder="0 — не менять"></label>
+  </div>
+</div>
+
+<script>
+/* ---------- админ ---------- */
+let pane = 'overview';
+document.querySelectorAll('#aseg button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('#aseg button').forEach(x => x.classList.toggle('on', x === b));
+  pane = b.dataset.a; document.querySelectorAll('.apane').forEach(p => p.hidden = p.id !== 'a-' + pane);
+  haptic('selectionChanged'); loadAdmin();
+});
+function loadAdmin() { ({ overview: loadStats, users: loadUsers, wd: loadWd, pays: loadPays, set: loadSettings })[pane]().catch(e => hud(e.message, false)); }
+
+async function loadStats() {
+  const s = await api('/api/admin/stats');
+  const tiles = [
+    ['people', 'Игроки', s.users.toLocaleString('ru'), `+${s.new_24h} за сутки`],
+    ['bolt', 'Активные 24ч', s.active_24h.toLocaleString('ru')],
+    ['star', 'Stars всего', `★ ${s.stars_total.toLocaleString('ru')}`, `+${s.stars_24h} за сутки`],
+    ['bag', 'Покупок', s.payments.toLocaleString('ru')],
+    ['down', 'Выводы ждут', s.wd_pending.toLocaleString('ru')],
+    ['up', 'Выплачено', `${fmt(s.wd_paid, 2)}`],
+  ];
+  const g = $('stats'); g.innerHTML = '';
+  tiles.forEach(([ic, t, v, d]) => {
+    const sm = el('small'); sm.innerHTML = `<svg width="14" height="14"><use href="#i-${ic}"/></svg>`; sm.append(t);
+    g.append(el('div', { class: 'tile' }, sm, el('b', { class: 'num' }, v), d ? el('i', {}, d) : null));
+  });
+  g.append(el('div', { class: 'tile', style: 'grid-column:1/-1' }, el('small', {}, 'Монет на балансах'), el('b', { class: 'num' }, `${fmt(s.coins_total, 2)} ${S?.coin || ''}`)));
+}
+
+let qT;
+$('uq').oninput = () => { clearTimeout(qT); qT = setTimeout(loadUsers, 300); };
+async function loadUsers() {
+  const { users } = await api('/api/admin/users?q=' + encodeURIComponent($('uq').value));
+  const box = $('ulist'); box.innerHTML = '';
+  if (!users.length) box.append(el('div', { class: 'empty' }, 'Никого не найдено'));
+  users.forEach(u => {
+    const c = el('button', { class: 'cell' }, icon('person', u.banned ? 'var(--red)' : 'var(--indigo)'),
+      el('div', { class: 'tx' }, el('b', {}, u.name || 'Без имени'), el('small', {}, `${u.username ? '@' + u.username + ' · ' : ''}${u.id}`)),
+      el('span', { class: 'val num' }, fmt(u.balance, 3)), chev());
+    c.onclick = () => openUser(u); box.append(c);
+  });
+}
+
+let editing = null;
+function openUser(u) {
+  editing = u;
+  $('sh-title').textContent = u.name || 'Игрок';
+  const info = $('sh-info'); info.innerHTML = '';
+  [['ID', u.id], ['Username', u.username ? '@' + u.username : '—'], ['Друзей', u.friends], ['Регистрация', ago(u.created) + ' назад'],
+   ['Буст', u.boost_until > Date.now() / 1000 ? `×${u.boost_mult}, ещё ${ago(2 * Date.now() / 1000 - u.boost_until)}` : 'нет']]
+    .forEach(([k, v]) => info.append(el('div', { class: 'cell noicon' }, el('div', { class: 'tx' }, el('b', {}, k)), el('span', { class: 'val num' }, String(v)))));
+  $('e-bal').value = +fmt(u.balance, 6); $('e-lvl').value = u.level + 1; $('e-ban').checked = !!u.banned;
+  $('e-bm').value = ''; $('e-bh').value = '';
+  $('scrim').classList.add('on'); $('sheet').classList.add('on');
+}
+function closeSheet() { $('scrim').classList.remove('on'); $('sheet').classList.remove('on'); }
+$('scrim').onclick = $('sh-cancel').onclick = closeSheet;
+$('sh-save').onclick = async () => {
+  const body = { balance: +$('e-bal').value, level: +$('e-lvl').value, banned: $('e-ban').checked };
+  if (+$('e-bh').value > 0) { body.boost_hours = +$('e-bh').value; body.boost_mult = +$('e-bm').value || 2; }
+  try { await api('/api/admin/users/' + editing.id, 'POST', body); closeSheet(); hud('Сохранено'); loadUsers(); }
+  catch (e) { hud(e.message, false); }
+};
+
+async function loadPays() {
+  const { payments } = await api('/api/admin/payments'); const box = $('plist'); box.innerHTML = '';
+  if (!payments.length) box.append(el('div', { class: 'empty' }, 'Платежей пока нет'));
+  payments.forEach(p => {
+    const b = el('button', { class: 'pill', style: p.refunded ? '' : 'color:var(--red)', disabled: p.refunded ? '' : false }, p.refunded ? 'Возвращён' : 'Вернуть');
+    b.onclick = () => tg.showConfirm ? tg.showConfirm(`Вернуть ★${p.stars} пользователю ${p.name || p.user_id}?`, ok => ok && refund(p)) : refund(p);
+    box.append(el('div', { class: 'cell' }, icon('star', 'var(--orange)'),
+      el('div', { class: 'tx' }, el('b', {}, `★ ${p.stars} · ${p.item}`), el('small', {}, `${p.name || p.user_id}${p.username ? ' @' + p.username : ''} · ${ago(p.created)} назад`)), b));
+  });
+}
+async function refund(p) {
+  try { await api('/api/admin/refund/' + encodeURIComponent(p.charge_id), 'POST'); hud('Stars возвращены'); loadPays(); }
+  catch (e) { hud(e.message, false); }
+}
+
+$('bcsend').onclick = () => {
+  const text = $('bctext').value.trim(); if (!text) return hud('Введите текст', false);
+  const go = async () => { try { const r = await api('/api/admin/broadcast', 'POST', { text }); hud(`Отправляется: ${r.recipients}`); $('bctext').value = ''; } catch (e) { hud(e.message, false); } };
+  tg.showConfirm ? tg.showConfirm('Отправить сообщение всем игрокам?', ok => ok && go()) : go();
+};
+
+
+/* ---------- выводы ---------- */
+let wdStatus = 'pending';
+document.querySelectorAll('#wdseg button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('#wdseg button').forEach(x => x.classList.toggle('on', x === b));
+  wdStatus = b.dataset.s; haptic('selectionChanged'); loadWd();
+});
+async function loadWd() {
+  const { withdrawals } = await api('/api/admin/withdrawals?status=' + wdStatus);
+  const box = $('wdlist'); box.innerHTML = '';
+  if (!withdrawals.length) box.append(el('div', { class: 'empty' }, 'Заявок нет'));
+  withdrawals.forEach(w => {
+    const addr = el('small', { style: 'word-break:break-all;white-space:normal;font-family:ui-monospace,Menlo,monospace' }, w.address);
+    const tx = el('div', { class: 'tx' }, el('b', { class: 'num' }, `#${w.id} · ${fmt(w.amount, 4)} ${S?.coin || ''}`),
+      el('small', {}, `${w.name || w.user_id}${w.username ? ' @' + w.username : ''} · ${ago(w.created)} назад`), addr);
+    const cell = el('div', { class: 'cell', style: 'flex-wrap:wrap' }, icon(w.status === 'paid' ? 'up' : 'down', w.status === 'rejected' ? 'var(--red)' : w.status === 'paid' ? 'var(--green)' : 'var(--orange)'), tx);
+    if (w.status === 'pending') {
+      const copy = el('button', { class: 'pill' }, 'Адрес'); copy.onclick = () => navigator.clipboard.writeText(w.address).then(() => hud('Адрес скопирован'));
+      const ok = el('button', { class: 'pill', style: 'color:var(--green)' }, 'Выплачено');
+      ok.onclick = () => { const h = prompt('Хеш транзакции (необязательно):', ''); if (h !== null) wdAct(w, 'paid', h.trim() || null); };
+      const no = el('button', { class: 'pill', style: 'color:var(--red)' }, 'Отклонить');
+      no.onclick = () => tg.showConfirm ? tg.showConfirm(`Отклонить #${w.id} и вернуть монеты?`, y => y && wdAct(w, 'rejected')) : wdAct(w, 'rejected');
+      cell.append(el('div', { style: 'display:flex;flex-wrap:wrap;gap:6px;width:100%;padding-left:44px;margin-top:6px' }, copy, ok, no));
+    } else if (w.tx) cell.append(el('small', { style: 'width:100%;padding-left:44px;color:var(--label2);word-break:break-all' }, 'tx: ' + w.tx));
+    box.append(cell);
+  });
+}
+async function wdAct(w, action, tx) {
+  try { await api('/api/admin/withdrawals/' + w.id, 'POST', { action, tx }); hud(action === 'paid' ? 'Отмечено как выплачено' : 'Отклонено, монеты возвращены'); loadWd(); }
+  catch (e) { hud(e.message, false); }
+}
+
+/* ---------- настройки ---------- */
+async function loadSettings() {
+  const s = await api('/api/admin/settings');
+  $('s-coin').value = s.coin_name; $('s-min').value = s.min_withdraw; $('s-wden').checked = s.withdraw_enabled; $('s-welcome').value = s.welcome_text;
+}
+$('s-save').onclick = async () => {
+  try {
+    await api('/api/admin/settings', 'POST', { coin_name: $('s-coin').value, min_withdraw: +$('s-min').value, withdraw_enabled: $('s-wden').checked, welcome_text: $('s-welcome').value });
+    hud('Сохранено'); render(await api('/api/state'));
+  } catch (e) { hud(e.message, false); }
+};
+</script>

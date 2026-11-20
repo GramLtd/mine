@@ -37,6 +37,17 @@ def init():
             created REAL,
             refunded INTEGER DEFAULT 0
         );
+        CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT);
+        CREATE TABLE IF NOT EXISTS withdrawals(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            amount REAL,
+            address TEXT,
+            status TEXT DEFAULT 'pending',
+            tx TEXT,
+            created REAL,
+            processed REAL
+        );
         """)
         cols = {r["name"] for r in c.execute("PRAGMA table_info(users)")}
         for col, ddl in [("username", "TEXT"), ("boost_mult", "REAL DEFAULT 1"),
@@ -132,6 +143,8 @@ def stats():
             "stars_24h": q("SELECT COALESCE(SUM(stars),0) FROM payments WHERE refunded=0 AND created>?", day),
             "payments": q("SELECT COUNT(*) FROM payments WHERE refunded=0"),
             "coins_total": q("SELECT COALESCE(SUM(balance),0) FROM users"),
+            "wd_pending": q("SELECT COUNT(*) FROM withdrawals WHERE status='pending'"),
+            "wd_paid": q("SELECT COALESCE(SUM(amount),0) FROM withdrawals WHERE status='paid'"),
         }
 
 
@@ -151,3 +164,53 @@ def search(q: str, limit=30):
 def all_ids():
     with conn() as c:
         return [r[0] for r in c.execute("SELECT id FROM users WHERE banned=0")]
+
+
+# --- настройки (меняются из админки) ---
+def get_setting(key, default=None):
+    with conn() as c:
+        r = c.execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone()
+        return r[0] if r else default
+
+
+def set_setting(key, value):
+    with conn() as c:
+        c.execute("INSERT INTO settings VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                  (key, str(value)))
+
+
+# --- выводы ---
+def create_withdrawal(uid, amount, address) -> int | None:
+    """Атомарно списывает баланс и создаёт заявку. None — не хватает средств или уже есть заявка."""
+    with conn() as c:
+        if c.execute("SELECT 1 FROM withdrawals WHERE user_id=? AND status='pending'", (uid,)).fetchone():
+            return None
+        cur = c.execute("UPDATE users SET balance=balance-? WHERE id=? AND balance>=?", (amount, uid, amount))
+        if cur.rowcount != 1:
+            return None
+        return c.execute("INSERT INTO withdrawals(user_id,amount,address,created) VALUES(?,?,?,?)",
+                         (uid, amount, address, time.time())).lastrowid
+
+
+def withdrawals(uid=None, status=None, limit=50):
+    sql = ("SELECT w.*, u.name, u.username FROM withdrawals w LEFT JOIN users u ON u.id=w.user_id WHERE 1=1")
+    args = []
+    if uid is not None:
+        sql += " AND w.user_id=?"; args.append(uid)
+    if status:
+        sql += " AND w.status=?"; args.append(status)
+    sql += " ORDER BY w.id DESC LIMIT ?"; args.append(limit)
+    with conn() as c:
+        return [dict(r) for r in c.execute(sql, args)]
+
+
+def finish_withdrawal(wid, status, tx=None):
+    """status: paid | rejected. При отклонении монеты возвращаются. Возвращает заявку или None."""
+    with conn() as c:
+        w = c.execute("SELECT * FROM withdrawals WHERE id=? AND status='pending'", (wid,)).fetchone()
+        if not w:
+            return None
+        c.execute("UPDATE withdrawals SET status=?, tx=?, processed=? WHERE id=?", (status, tx, time.time(), wid))
+        if status == "rejected":
+            c.execute("UPDATE users SET balance=balance+? WHERE id=?", (w["amount"], w["user_id"]))
+        return dict(w)

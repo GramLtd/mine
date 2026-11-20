@@ -1,7 +1,8 @@
 import time
 from . import db
 from .config import (LEVELS, COIN_PER_GH_PER_SEC, STORAGE_HOURS, REF_HASH_BONUS,
-                     REF_HASH_BONUS_MAX, COIN, SHOP)
+                     REF_HASH_BONUS_MAX, SHOP)
+from . import settings
 
 
 def base_hashrate(user) -> float:
@@ -50,9 +51,7 @@ def apply_item(uid: int, item: str):
             settle(user, now)
             db.update(uid, level=user["level"] + 1)
         else:
-            db.add_balance(uid, 1.0)  # компенсация на макс. уровне
-    elif item == "coins":
-        db.add_balance(uid, 1.0)
+            db.update(uid, boost_mult=2, boost_until=max(now, user["boost_until"]) + 2 * 86400)  # компенсация
 
 
 def state(user, is_admin=False) -> dict:
@@ -62,7 +61,9 @@ def state(user, is_admin=False) -> dict:
     b = boost(user, now)
     hr = base_hashrate(user) * b
     return {
-        "coin": COIN,
+        "coin": settings.coin(),
+        "min_withdraw": settings.min_withdraw(),
+        "withdraw_enabled": settings.withdraw_enabled(),
         "balance": user["balance"],
         "pending": pending(user, now),
         "hashrate": hr,

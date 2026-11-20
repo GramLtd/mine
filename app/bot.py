@@ -3,8 +3,8 @@ from aiogram.filters import CommandStart, CommandObject, Command
 from aiogram.types import (Message, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo,
                            PreCheckoutQuery)
 
-from . import db, game
-from .config import WEBAPP_URL, REF_BONUS_COINS, COIN, SHOP, ADMIN_IDS, ADMIN_USERNAMES
+from . import db, game, settings
+from .config import WEBAPP_URL, REF_BONUS_COINS, SHOP, ADMIN_IDS, ADMIN_USERNAMES
 
 router = Router()
 
@@ -34,14 +34,13 @@ async def start(msg: Message, command: CommandObject):
         try:
             await msg.bot.send_message(
                 user["referrer"],
-                f"🎉 {msg.from_user.first_name} присоединился по вашей ссылке! +{REF_BONUS_COINS} {COIN}")
+                f"🎉 {msg.from_user.first_name} присоединился по вашей ссылке! +{REF_BONUS_COINS} {settings.coin()}")
         except Exception:
             pass
-    await msg.answer(
-        "<b>HashFan</b>\n\n"
-        "Ферма майнит, пока вы отдыхаете. Забирайте монеты, улучшайте уровень, зовите друзей.\n\n"
-        "<i>Это игра — монеты виртуальные.</i>",
-        reply_markup=kb())
+    try:
+        await msg.answer(settings.welcome(), reply_markup=kb())
+    except Exception:  # некорректный HTML в тексте — отправляем без разметки
+        await msg.answer(settings.welcome(), reply_markup=kb(), parse_mode=None)
 
 
 @router.message(Command("admin"))
@@ -54,7 +53,8 @@ async def admin_cmd(msg: Message):
         f"👥 Пользователей: {s['users']} (+{s['new_24h']} за 24ч)\n"
         f"⚡ Активных за 24ч: {s['active_24h']}\n"
         f"⭐ Stars: {s['stars_total']} (за 24ч: {s['stars_24h']})\n"
-        f"🧾 Платежей: {s['payments']}\n\n"
+        f"🧾 Платежей: {s['payments']}\n"
+        f"💸 Заявок на вывод: {s['wd_pending']}\n\n"
         f"Ваш ID: <code>{msg.from_user.id}</code> — добавьте его в ADMIN_IDS.\n"
         f"Полное управление — во вкладке «Админ» в приложении.",
         reply_markup=kb())

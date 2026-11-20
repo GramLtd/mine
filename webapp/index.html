@@ -176,7 +176,10 @@ textarea{width:100%;min-height:140px;border:0;outline:none;background:var(--bg2)
 <section id="home" class="page on">
   <div class="balance">
     <div><small>Баланс</small><b class="num" id="bal">0.0000<span>HASH</span></b></div>
-    <div class="chip" id="lvlchip">Ур. 1</div>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
+      <div class="chip" id="lvlchip">Ур. 1</div>
+      <button class="pill" id="wdopen">Вывести</button>
+    </div>
   </div>
 
   <div class="stage">
@@ -197,7 +200,7 @@ textarea{width:100%;min-height:140px;border:0;outline:none;background:var(--bg2)
     </div>
   </div>
 
-  <div class="mined num" id="mined">0.0000000000<span> HASH</span></div>
+  <div class="mined num" id="mined">0.0000000000<span id="minedcoin"></span></div>
   <div class="sub" id="rate">— GH/s</div>
 
   <div class="actions">
@@ -236,57 +239,30 @@ textarea{width:100%;min-height:140px;border:0;outline:none;background:var(--bg2)
   <h1 class="large-title">Магазин</h1>
   <div class="caption">За Telegram Stars</div>
   <div class="group" id="slist"></div>
-  <p class="footnote">Оплата проходит внутри Telegram. Покупки — внутриигровые улучшения, вывода средств нет.</p>
+  <p class="footnote">Оплата проходит внутри Telegram. Покупки — внутриигровые улучшения скорости майнинга.</p>
 </section>
 
-<!-- ============ АДМИН ============ -->
-<section id="admin" class="page">
-  <h1 class="large-title">Админ</h1>
-  <div class="seg" id="aseg">
-    <button data-a="overview" class="on">Обзор</button>
-    <button data-a="users">Игроки</button>
-    <button data-a="pays">Платежи</button>
-    <button data-a="bc">Рассылка</button>
-  </div>
+<div id="admin-root"></div>
 
-  <div id="a-overview" class="apane">
-    <div class="grid" id="stats"></div>
-  </div>
-
-  <div id="a-users" class="apane" hidden>
-    <label class="search"><svg><use href="#i-search"/></svg><input id="uq" placeholder="Имя, @username или ID" enterkeyhint="search"></label>
-    <div class="group" id="ulist"></div>
-  </div>
-
-  <div id="a-pays" class="apane" hidden>
-    <div class="group" id="plist"></div>
-  </div>
-
-  <div id="a-bc" class="apane" hidden>
-    <textarea id="bctext" placeholder="Текст рассылки. Поддерживается HTML: <b>, <i>, <a href>"></textarea>
-    <button class="btn primary" id="bcsend" style="width:100%;margin-top:12px">Отправить всем</button>
-    <p class="footnote">Отправка ~20 сообщений в секунду. По окончании бот пришлёт отчёт.</p>
-  </div>
-</section>
-
-<!-- ============ ЛИСТ РЕДАКТИРОВАНИЯ ============ -->
-<div class="scrim" id="scrim"></div>
-<div class="sheet" id="sheet">
+<!-- ============ ВЫВОД ============ -->
+<div class="scrim" id="wd-scrim"></div>
+<div class="sheet" id="wd-sheet">
   <div class="grabber"></div>
-  <div class="sheet-head"><button id="sh-cancel">Отмена</button><h3 id="sh-title">Игрок</h3><button id="sh-save" style="font-weight:600">Готово</button></div>
-  <div class="caption">Профиль</div>
-  <div class="group" id="sh-info"></div>
-  <div class="caption">Изменить</div>
+  <div class="sheet-head"><button id="wd-cancel">Закрыть</button><h3>Вывод на TON</h3><span style="width:60px"></span></div>
+  <div class="caption">Сумма</div>
   <div class="group">
-    <label class="cell field noicon"><span>Баланс</span><input id="e-bal" type="number" step="any" inputmode="decimal"></label>
-    <label class="cell field noicon"><span>Уровень</span><input id="e-lvl" type="number" min="1" inputmode="numeric"></label>
-    <div class="cell field noicon"><span>Заблокирован</span><label class="sw"><input type="checkbox" id="e-ban"><span></span></label></div>
+    <label class="cell field noicon"><span>Количество</span><input id="wd-amount" type="number" step="any" inputmode="decimal" placeholder="0"></label>
+    <button class="cell noicon" id="wd-max"><div class="tx"><b style="color:var(--blue)">Вывести всё</b></div><span class="val num" id="wd-avail"></span></button>
   </div>
-  <div class="caption">Выдать буст</div>
+  <div class="caption">TON-адрес кошелька</div>
   <div class="group">
-    <label class="cell field noicon"><span>Множитель</span><input id="e-bm" type="number" step="0.5" min="1" placeholder="2"></label>
-    <label class="cell field noicon"><span>Часов</span><input id="e-bh" type="number" min="0" placeholder="0 — не менять"></label>
+    <label class="cell noicon"><input id="wd-addr" placeholder="UQ… или EQ…" autocomplete="off" autocapitalize="off" spellcheck="false"
+      style="width:100%;border:0;background:none;outline:none;font-size:15px;font-family:ui-monospace,Menlo,monospace"></label>
   </div>
+  <p class="footnote" id="wd-note"></p>
+  <button class="btn primary" id="wd-send" style="width:100%;margin-top:16px">Создать заявку</button>
+  <div class="caption">История</div>
+  <div class="group" id="wd-hist"></div>
 </div>
 
 <!-- ============ ТАБ-БАР ============ -->
@@ -295,7 +271,6 @@ textarea{width:100%;min-height:140px;border:0;outline:none;background:var(--bg2)
   <button data-p="friends"><svg><use href="#i-people"/></svg>Друзья</button>
   <button data-p="missions"><svg><use href="#i-target"/></svg>Миссии</button>
   <button data-p="shop"><svg><use href="#i-bag"/></svg>Магазин</button>
-  <button data-p="admin" id="tab-admin" hidden><svg><use href="#i-gear"/></svg>Админ</button>
 </nav>
 <div class="hud" id="hud"></div>
 
@@ -353,6 +328,7 @@ const RING = 584.3;
 function render(s) {
   S = s; base = s.pending; t0 = performance.now();
   $('bal').innerHTML = ''; $('bal').append(fmt(s.balance), el('span', {}, s.coin));
+  $('minedcoin').textContent = ' ' + s.coin;
   $('lvlchip').textContent = s.boost ? `×${s.boost.mult} буст` : `Ур. ${s.level}`;
   $('lvlchip').className = 'chip' + (s.boost ? ' boost' : '');
   $('rate').textContent = `${Math.round(s.hashrate).toLocaleString('ru')} GH/s · уровень ${s.level} из ${s.max_level}`;
@@ -360,7 +336,7 @@ function render(s) {
   $('upg').disabled = !n || s.balance < n.price;
   $('upginfo').textContent = n ? `Следующий уровень — ${n.hashrate} GH/s за ${n.price} ${s.coin}` : 'Достигнут максимальный уровень';
   document.querySelector('.fan').style.setProperty('--spin', (1.6 / (s.boost?.mult || 1)) + 's');
-  $('tab-admin').hidden = !s.is_admin;
+  if (s.is_admin && !adminLoaded) loadAdminUI();
   renderShop(s);
 }
 function tick() {
@@ -381,8 +357,46 @@ $('upg').onclick = async () => {
   catch (e) { hud(e.message, false); }
 };
 
+/* ---------- вывод ---------- */
+const WD_ST = { pending: ['В обработке', 'var(--orange)'], paid: ['Выплачено', 'var(--green)'], rejected: ['Отклонено', 'var(--red)'] };
+function wdSheet(on) { $('wd-scrim').classList.toggle('on', on); $('wd-sheet').classList.toggle('on', on); }
+$('wd-scrim').onclick = $('wd-cancel').onclick = () => wdSheet(false);
+$('wdopen').onclick = async () => {
+  if (!S) return;
+  if (!S.withdraw_enabled) return hud('Вывод временно недоступен', false);
+  const avail = S.balance + S.pending;
+  $('wd-avail').textContent = `${fmt(avail, 4)} ${S.coin}`;
+  $('wd-note').textContent = `Минимальная сумма — ${S.min_withdraw} ${S.coin}. Заявки обрабатываются вручную, обычно в течение 24 часов.`;
+  $('wd-amount').placeholder = `от ${S.min_withdraw}`;
+  try { $('wd-addr').value = localStorage.getItem('ton_addr') || ''; } catch {}
+  wdSheet(true); loadWdHist();
+};
+$('wd-max').onclick = () => { $('wd-amount').value = Math.floor((S.balance + S.pending) * 1e4) / 1e4; };
+$('wd-send').onclick = async () => {
+  const amount = +$('wd-amount').value, address = $('wd-addr').value.trim();
+  if (amount < S.min_withdraw) return hud(`Минимум ${S.min_withdraw} ${S.coin}`, false);
+  if (!address) return hud('Укажите TON-адрес', false);
+  $('wd-send').disabled = true;
+  try {
+    const r = await api('/api/withdraw', 'POST', { amount, address });
+    try { localStorage.setItem('ton_addr', address); } catch {}
+    render(r); hud('Заявка создана'); $('wd-amount').value = ''; loadWdHist();
+  } catch (e) { hud(e.message, false); }
+  $('wd-send').disabled = false;
+};
+async function loadWdHist() {
+  const { withdrawals } = await api('/api/withdrawals'); const box = $('wd-hist'); box.innerHTML = '';
+  if (!withdrawals.length) box.append(el('div', { class: 'empty' }, 'Заявок пока нет'));
+  withdrawals.forEach(w => {
+    const [t, c] = WD_ST[w.status] || [w.status, 'var(--label3)'];
+    box.append(el('div', { class: 'cell noicon' }, el('div', { class: 'tx' }, el('b', { class: 'num' }, `${fmt(w.amount, 4)} ${S.coin}`),
+      el('small', { style: 'font-family:ui-monospace,Menlo,monospace' }, w.address.slice(0, 6) + '…' + w.address.slice(-6))),
+      el('span', { class: 'val', style: `color:${c};font-weight:600` }, t)));
+  });
+}
+
 /* ---------- магазин (Stars) ---------- */
-const SHOP_ICON = { boost2: ['bolt', 'var(--orange)'], boost3: ['bolt', 'var(--pink)'], level: ['up', 'var(--indigo)'], coins: ['gift', 'var(--green)'] };
+const SHOP_ICON = { boost2: ['bolt', 'var(--orange)'], boost3: ['bolt', 'var(--pink)'], level: ['up', 'var(--indigo)'] };
 function renderShop(s) {
   const box = $('slist'); box.innerHTML = '';
   s.shop.forEach(it => {
@@ -433,89 +447,8 @@ async function loadMissions() {
   });
 }
 
-/* ---------- админ ---------- */
-let pane = 'overview';
-document.querySelectorAll('#aseg button').forEach(b => b.onclick = () => {
-  document.querySelectorAll('#aseg button').forEach(x => x.classList.toggle('on', x === b));
-  pane = b.dataset.a; document.querySelectorAll('.apane').forEach(p => p.hidden = p.id !== 'a-' + pane);
-  haptic('selectionChanged'); loadAdmin();
-});
-function loadAdmin() { ({ overview: loadStats, users: loadUsers, pays: loadPays, bc: () => {} })[pane](); }
-
-async function loadStats() {
-  const s = await api('/api/admin/stats');
-  const tiles = [
-    ['people', 'Игроки', s.users.toLocaleString('ru'), `+${s.new_24h} за сутки`],
-    ['bolt', 'Активные 24ч', s.active_24h.toLocaleString('ru')],
-    ['star', 'Stars всего', `★ ${s.stars_total.toLocaleString('ru')}`, `+${s.stars_24h} за сутки`],
-    ['bag', 'Покупок', s.payments.toLocaleString('ru')],
-  ];
-  const g = $('stats'); g.innerHTML = '';
-  tiles.forEach(([ic, t, v, d]) => {
-    const sm = el('small'); sm.innerHTML = `<svg width="14" height="14"><use href="#i-${ic}"/></svg>`; sm.append(t);
-    g.append(el('div', { class: 'tile' }, sm, el('b', { class: 'num' }, v), d ? el('i', {}, d) : null));
-  });
-  g.append(el('div', { class: 'tile', style: 'grid-column:1/-1' }, el('small', {}, 'Монет на балансах'), el('b', { class: 'num' }, `${fmt(s.coins_total, 2)} ${S?.coin || ''}`)));
-}
-
-let qT;
-$('uq').oninput = () => { clearTimeout(qT); qT = setTimeout(loadUsers, 300); };
-async function loadUsers() {
-  const { users } = await api('/api/admin/users?q=' + encodeURIComponent($('uq').value));
-  const box = $('ulist'); box.innerHTML = '';
-  if (!users.length) box.append(el('div', { class: 'empty' }, 'Никого не найдено'));
-  users.forEach(u => {
-    const c = el('button', { class: 'cell' }, icon('person', u.banned ? 'var(--red)' : 'var(--indigo)'),
-      el('div', { class: 'tx' }, el('b', {}, u.name || 'Без имени'), el('small', {}, `${u.username ? '@' + u.username + ' · ' : ''}${u.id}`)),
-      el('span', { class: 'val num' }, fmt(u.balance, 3)), chev());
-    c.onclick = () => openUser(u); box.append(c);
-  });
-}
-
-let editing = null;
-function openUser(u) {
-  editing = u;
-  $('sh-title').textContent = u.name || 'Игрок';
-  const info = $('sh-info'); info.innerHTML = '';
-  [['ID', u.id], ['Username', u.username ? '@' + u.username : '—'], ['Друзей', u.friends], ['Регистрация', ago(u.created) + ' назад'],
-   ['Буст', u.boost_until > Date.now() / 1000 ? `×${u.boost_mult}, ещё ${ago(2 * Date.now() / 1000 - u.boost_until)}` : 'нет']]
-    .forEach(([k, v]) => info.append(el('div', { class: 'cell noicon' }, el('div', { class: 'tx' }, el('b', {}, k)), el('span', { class: 'val num' }, String(v)))));
-  $('e-bal').value = +fmt(u.balance, 6); $('e-lvl').value = u.level + 1; $('e-ban').checked = !!u.banned;
-  $('e-bm').value = ''; $('e-bh').value = '';
-  $('scrim').classList.add('on'); $('sheet').classList.add('on');
-}
-function closeSheet() { $('scrim').classList.remove('on'); $('sheet').classList.remove('on'); }
-$('scrim').onclick = $('sh-cancel').onclick = closeSheet;
-$('sh-save').onclick = async () => {
-  const body = { balance: +$('e-bal').value, level: +$('e-lvl').value, banned: $('e-ban').checked };
-  if (+$('e-bh').value > 0) { body.boost_hours = +$('e-bh').value; body.boost_mult = +$('e-bm').value || 2; }
-  try { await api('/api/admin/users/' + editing.id, 'POST', body); closeSheet(); hud('Сохранено'); loadUsers(); }
-  catch (e) { hud(e.message, false); }
-};
-
-async function loadPays() {
-  const { payments } = await api('/api/admin/payments'); const box = $('plist'); box.innerHTML = '';
-  if (!payments.length) box.append(el('div', { class: 'empty' }, 'Платежей пока нет'));
-  payments.forEach(p => {
-    const b = el('button', { class: 'pill', style: p.refunded ? '' : 'color:var(--red)', disabled: p.refunded ? '' : false }, p.refunded ? 'Возвращён' : 'Вернуть');
-    b.onclick = () => tg.showConfirm ? tg.showConfirm(`Вернуть ★${p.stars} пользователю ${p.name || p.user_id}?`, ok => ok && refund(p)) : refund(p);
-    box.append(el('div', { class: 'cell' }, icon('star', 'var(--orange)'),
-      el('div', { class: 'tx' }, el('b', {}, `★ ${p.stars} · ${p.item}`), el('small', {}, `${p.name || p.user_id}${p.username ? ' @' + p.username : ''} · ${ago(p.created)} назад`)), b));
-  });
-}
-async function refund(p) {
-  try { await api('/api/admin/refund/' + encodeURIComponent(p.charge_id), 'POST'); hud('Stars возвращены'); loadPays(); }
-  catch (e) { hud(e.message, false); }
-}
-
-$('bcsend').onclick = () => {
-  const text = $('bctext').value.trim(); if (!text) return hud('Введите текст', false);
-  const go = async () => { try { const r = await api('/api/admin/broadcast', 'POST', { text }); hud(`Отправляется: ${r.recipients}`); $('bctext').value = ''; } catch (e) { hud(e.message, false); } };
-  tg.showConfirm ? tg.showConfirm('Отправить сообщение всем игрокам?', ok => ok && go()) : go();
-};
-
 /* ---------- навигация ---------- */
-document.querySelectorAll('#tabbar button').forEach(b => b.onclick = () => {
+function bindTab(b) { b.onclick = () => {
   const p = b.dataset.p;
   document.querySelectorAll('#tabbar button').forEach(x => x.classList.toggle('on', x === b));
   document.querySelectorAll('.page').forEach(x => x.classList.toggle('on', x.id === p));
@@ -523,7 +456,24 @@ document.querySelectorAll('#tabbar button').forEach(b => b.onclick = () => {
   if (p === 'friends') loadFriends().catch(e => hud(e.message, false));
   if (p === 'missions') loadMissions().catch(e => hud(e.message, false));
   if (p === 'admin') loadAdmin();
-});
+}; }
+document.querySelectorAll('#tabbar button').forEach(bindTab);
+
+/* ---------- админка: загружается с сервера только для админа ---------- */
+let adminLoaded = false;
+async function loadAdminUI() {
+  adminLoaded = true;
+  try {
+    const { html } = await api('/api/admin/ui');
+    const t = document.createElement('template'); t.innerHTML = html;
+    t.content.querySelectorAll('script').forEach(old => {
+      const sc = document.createElement('script'); sc.textContent = old.textContent; old.replaceWith(sc);
+    });
+    $('admin-root').append(t.content);
+    const tab = el('button', { 'data-p': 'admin' }); tab.innerHTML = '<svg><use href="#i-gear"/></svg>Админ';
+    $('tabbar').append(tab); bindTab(tab);
+  } catch { adminLoaded = false; }
+}
 
 api('/api/state').then(render).catch(e => { $('mined').textContent = e.message === 'Ошибка сети' ? 'Откройте в Telegram' : e.message; $('mined').style.fontSize = '20px'; });
 setInterval(() => api('/api/state').then(render).catch(() => {}), 30000);
