@@ -19,7 +19,7 @@ async def main():
         text="Играть", web_app=WebAppInfo(url=WEBAPP_URL)))
     dp = Dispatcher()
     dp.include_router(router)
-    web = uvicorn.Server(uvicorn.Config(server.api, host="0.0.0.0", port=PORT))
+    web = uvicorn.Server(uvicorn.Config(server.api, host="127.0.0.1", port=PORT))
     await asyncio.gather(web.serve(), dp.start_polling(bot))
 
 

@@ -34,3 +34,15 @@ Mini App должен открываться по **HTTPS**. Для теста: 
 - `webapp/index.html` — интерфейс Mini App
 
 Весь подсчёт монет идёт на сервере; клиент только анимирует счётчик.
+
+## Установка на VPS (Ubuntu)
+1. Направьте домен (A-запись) на IP сервера.
+2. На сервере:
+   ```bash
+   git clone -b claude/zealous-turing-41rldm https://github.com/gramltd/mine.git && cd mine
+   sudo bash deploy/install.sh your-domain.com
+   sudo nano /opt/hashfan/.env          # BOT_TOKEN, ADMIN_IDS
+   sudo systemctl restart hashfan
+   ```
+3. Логи: `sudo journalctl -u hashfan -f`. Обновление: `git pull && sudo bash deploy/update.sh`.
+4. Бэкап базы: `/opt/hashfan/game.db`.

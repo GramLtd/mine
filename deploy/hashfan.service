@@ -1,0 +1,16 @@
+[Unit]
+Description=HashFan Telegram bot + Mini App
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=hashfan
+WorkingDirectory=/opt/hashfan
+EnvironmentFile=/opt/hashfan/.env
+Environment=DB_PATH=/opt/hashfan/game.db
+ExecStart=/opt/hashfan/.venv/bin/python main.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
