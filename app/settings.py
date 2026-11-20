@@ -1,5 +1,5 @@
 from . import db
-from .config import COIN, DEFAULT_WELCOME, MIN_WITHDRAW, TON_WALLET, TON_PRICES
+from .config import COIN, DEFAULT_WELCOME, MIN_WITHDRAW, TON_WALLET, STAR_RUB, TON_RUB_FALLBACK
 
 
 def coin() -> str:
@@ -26,15 +26,39 @@ def ton_wallet() -> str:
     return db.get_setting("ton_wallet", TON_WALLET) or ""
 
 
-def ton_price(item) -> float:
-    return float(db.get_setting(f"ton_price_{item}", TON_PRICES.get(item, 0)))
+def star_rub() -> float:
+    return float(db.get_setting("star_rub", STAR_RUB))
 
 
-def ton_prices() -> dict:
-    """Только товары с ценой > 0 и только если задан кошелёк."""
-    if not ton_wallet():
-        return {}
-    return {k: p for k in TON_PRICES if (p := ton_price(k)) > 0}
+def ton_rub_fallback() -> float:
+    return float(db.get_setting("ton_rub", TON_RUB_FALLBACK))
+
+
+_rate = {"v": None, "t": 0.0}
+
+
+def ton_rub() -> float:
+    """Курс TON в рублях, кешируется на 10 минут; при ошибке — последний известный или из админки."""
+    import json, time, urllib.request
+    if time.time() - _rate["t"] < 600 and _rate["v"]:
+        return _rate["v"]
+    try:
+        with urllib.request.urlopen("https://tonapi.io/v2/rates?tokens=ton&currencies=rub", timeout=5) as r:
+            v = float(json.load(r)["rates"]["TON"]["prices"]["RUB"])
+        if v > 0:
+            _rate.update(v=v, t=time.time())
+            return v
+    except Exception:
+        _rate["t"] = time.time() - 540  # повторим через минуту
+    return _rate["v"] or ton_rub_fallback()
+
+
+def stars_to_ton(stars: int) -> float:
+    return max(0.01, round(stars * star_rub() / ton_rub(), 2))
+
+
+def ton_enabled() -> bool:
+    return bool(ton_wallet())
 
 
 def all_settings() -> dict:
@@ -45,5 +69,7 @@ def all_settings() -> dict:
         "withdraw_enabled": withdraw_enabled(),
         "support_username": support(),
         "ton_wallet": ton_wallet(),
-        "ton_prices": {k: ton_price(k) for k in TON_PRICES},
+        "star_rub": star_rub(),
+        "ton_rub": ton_rub_fallback(),
+        "ton_rub_live": ton_rub(),
     }

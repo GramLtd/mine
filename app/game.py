@@ -57,6 +57,13 @@ def apply_item(uid: int, item: str):
         owned = set(filter(None, (user.get("skins") or "").split(",")))
         owned.add(item)
         db.update(uid, skins=",".join(sorted(owned)), skin=item)
+    elif item.startswith("up:"):
+        target = int(item[3:])
+        if user["level"] + 1 == target and target < len(LEVELS):
+            settle(user, now)
+            db.update(uid, level=target)
+        else:  # уровень уже подняли другим способом — возвращаем оплату на баланс
+            db.update(uid, balance=user["balance"] + LEVELS[min(target, len(LEVELS) - 1)][1])
     elif item == "level":
         if user["level"] + 1 < len(LEVELS):
             settle(user, now)
@@ -70,7 +77,7 @@ def state(user, is_admin=False) -> dict:
     nxt = LEVELS[lvl + 1] if lvl + 1 < len(LEVELS) else None
     now = time.time()
     b = boost(user, now)
-    ton_prices = settings.ton_prices()
+    ton_on = settings.ton_enabled()
     hr = base_hashrate(user) * b
     return {
         "coin": settings.coin(),
@@ -87,6 +94,7 @@ def state(user, is_admin=False) -> dict:
         "max_level": len(LEVELS),
         "boost": {"mult": b, "until": user["boost_until"]} if b > 1 else None,
         "next_level": {"hashrate": nxt[0], "price": nxt[1]} if nxt else None,
-        "shop": [{"id": k, "title": t, "desc": d, "stars": p, "cat": c, "ton": ton_prices.get(k)} for k, (t, d, p, c) in SHOP.items()],
+        "ton_enabled": ton_on,
+        "shop": [{"id": k, "title": t, "desc": d, "stars": p, "cat": c, "ton": settings.stars_to_ton(p) if ton_on else None} for k, (t, d, p, c) in SHOP.items()],
         "is_admin": is_admin,
     }

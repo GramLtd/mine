@@ -16,8 +16,9 @@ ADMIN_USERNAMES = {u.strip().lstrip("@").lower() for u in
 TON_WALLET = os.getenv("TON_WALLET", "").strip()           # кошелёк, на который приходят оплаты
 TONCENTER_API_KEY = os.getenv("TONCENTER_API_KEY", "")     # необязательно, снимает лимит 1 rps
 TONCENTER_URL = os.getenv("TONCENTER_URL", "https://toncenter.com/api/v2")
-# Какие товары можно оплатить в TON и цена по умолчанию (меняется в админке)
-TON_PRICES = {"boost2": 0.5, "boost3": 0.75}
+# Цена в TON = звёзды × STAR_RUB / курс TON в рублях (курс берётся с tonapi.io, запасной — в админке)
+STAR_RUB = 1.5
+TON_RUB_FALLBACK = 250.0
 TON_ORDER_TTL = 3600  # сколько секунд ждём оплату по заказу
 
 ADMIN_IDS = {int(x) for x in os.getenv("ADMIN_IDS", "").split(",") if x.strip().isdigit()}

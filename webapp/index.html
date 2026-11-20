@@ -385,7 +385,7 @@ function render(s) {
   $('lvlchip').className = 'chip' + (s.boost ? ' boost' : '');
   $('rate').textContent = `${Math.round(s.hashrate).toLocaleString('ru')} GH/s · уровень ${s.level} из ${s.max_level}`;
   const n = s.next_level;
-  $('upg').disabled = !n || s.balance < n.price;
+  $('upg').disabled = !n || (s.balance < n.price && !s.ton_enabled);
   $('upginfo').textContent = n ? `Следующий уровень — ${n.hashrate} GH/s за ${n.price} ${s.coin}` : 'Достигнут максимальный уровень';
   document.querySelector('.fan').dataset.skin = s.skin || '';
   document.querySelector('.fan').style.setProperty('--spin', (1.6 / (s.boost?.mult || 1)) + 's');
@@ -405,9 +405,23 @@ $('claim').onclick = async () => {
   try { const r = await api('/api/claim', 'POST'); render(r); hud(`+${fmt(r.claimed, 6)} ${r.coin}`); }
   catch (e) { hud(e.message, false); }
 };
-$('upg').onclick = async () => {
+async function upgradeBalance() {
   try { render(await api('/api/upgrade', 'POST')); hud('Ферма улучшена'); haptic('impactOccurred', 'heavy'); }
   catch (e) { hud(e.message, false); }
+}
+$('upg').onclick = () => {
+  const n = S?.next_level; if (!n) return;
+  if (!S.ton_enabled) return upgradeBalance();
+  const enough = S.balance >= n.price;
+  tg.showPopup({
+    title: `Уровень ${S.level + 1} · ${n.hashrate} GH/s`,
+    message: `Цена — ${n.price} ${S.coin} с баланса или ${n.price} TON.` + (enough ? '' : ' На балансе недостаточно монет.'),
+    buttons: [...(enough ? [{ id: 'bal', type: 'default', text: `С баланса · ${n.price} ${S.coin}` }] : []),
+      { id: 'ton', type: 'default', text: `Оплатить ${n.price} TON` }, { type: 'cancel' }],
+  }, id => {
+    if (id === 'bal') upgradeBalance();
+    else if (id === 'ton') buyTon({ id: 'upgrade' }, $('upg'));
+  });
 };
 
 /* ---------- вывод ---------- */

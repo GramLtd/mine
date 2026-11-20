@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from . import db, game, settings, ton
 from .auth import current_user
 from .config import (LEVELS, DAILY_BONUS, CHANNEL_USERNAME, REF_BONUS_COINS, SHOP, STORAGE_ITEMS,
-                     ADMIN_IDS, ADMIN_USERNAMES, TON_PRICES)
+                     ADMIN_IDS, ADMIN_USERNAMES)
 
 WEB = Path(__file__).resolve().parent.parent / "webapp"
 ADMIN_UI = Path(__file__).resolve().parent / "admin_ui"  # не публикуется как статика
@@ -184,10 +184,7 @@ async def stars_invoice(body: InvoiceIn, tg=Depends(current_user)):
     if body.item not in SHOP:
         raise HTTPException(404, "Нет такого товара")
     title, desc, price, _cat = SHOP[body.item]
-    if body.item.startswith("skin_") and body.item in (user.get("skins") or "").split(","):
-        raise HTTPException(400, "Скин уже куплен")
-    if body.item in STORAGE_ITEMS and game.storage_hours(user) >= STORAGE_ITEMS[body.item]:
-        raise HTTPException(400, "Уже есть такое или большее хранилище")
+    _check_buyable(user, body.item)
     link = await bot.create_invoice_link(
         title=title, description=desc, payload=f"{body.item}:{user['id']}",
         currency="XTR", prices=[LabeledPrice(label=title, amount=price)], provider_token="")
@@ -197,7 +194,7 @@ async def stars_invoice(body: InvoiceIn, tg=Depends(current_user)):
 # ---------- оплата в TON ----------
 async def ton_paid(order):
     game.apply_item(order["user_id"], order["item"])
-    title = SHOP[order["item"]][0]
+    title = _item_title(order["item"])
     amount = order["nano"] / ton.NANO
     try:
         await bot.send_message(order["user_id"], f"✅ Оплата {amount:g} TON получена — «{title}» активирован.")
@@ -210,18 +207,39 @@ async def ton_paid(order):
             pass
 
 
+def _check_buyable(user, item):
+    if item.startswith("skin_") and item in (user.get("skins") or "").split(","):
+        raise HTTPException(400, "Скин уже куплен")
+    if item in STORAGE_ITEMS and game.storage_hours(user) >= STORAGE_ITEMS[item]:
+        raise HTTPException(400, "Уже есть такое или большее хранилище")
+
+
+def _item_title(item):
+    return f"Уровень {int(item[3:]) + 1}" if item.startswith("up:") else SHOP[item][0]
+
+
 @api.post("/api/ton/order")
 def ton_order(body: InvoiceIn, tg=Depends(current_user)):
     user = load(tg)
-    prices = settings.ton_prices()
-    if body.item not in prices:
-        raise HTTPException(400, "Этот товар нельзя оплатить в TON")
-    nano = round(prices[body.item] * ton.NANO)
+    if not settings.ton_enabled():
+        raise HTTPException(400, "Оплата в TON временно недоступна")
+    item = body.item
+    if item == "upgrade":
+        if user["level"] + 1 >= len(LEVELS):
+            raise HTTPException(400, "Максимальный уровень")
+        item = f"up:{user['level'] + 1}"
+        amount = LEVELS[user["level"] + 1][1]  # курс монеты к TON 1:1
+    elif item in SHOP:
+        _check_buyable(user, item)
+        amount = settings.stars_to_ton(SHOP[item][2])
+    else:
+        raise HTTPException(404, "Нет такого товара")
+    nano = round(amount * ton.NANO)
     comment = f"TC{user['id']}-{secrets.token_hex(3)}"
-    oid = db.ton_order_create(user["id"], body.item, nano, comment)
+    oid = db.ton_order_create(user["id"], item, nano, comment)
     wallet = settings.ton_wallet()
     return {"id": oid, "address": wallet, "amount": nano / ton.NANO, "nano": nano, "comment": comment,
-            "title": SHOP[body.item][0], **ton.transfer_links(wallet, nano, comment)}
+            "title": _item_title(item), **ton.transfer_links(wallet, nano, comment)}
 
 
 @api.post("/api/ton/order/{oid}/check")
@@ -390,7 +408,8 @@ class SettingsIn(BaseModel):
     withdraw_enabled: bool | None = None
     support_username: str | None = None
     ton_wallet: str | None = None
-    ton_prices: dict[str, float] | None = None
+    star_rub: float | None = None
+    ton_rub: float | None = None
 
 
 @api.post("/api/admin/settings")
@@ -418,10 +437,14 @@ def a_set_settings(body: SettingsIn, _=Depends(admin)):
         if w and not ton.valid_address(w):
             raise HTTPException(400, "Неверный TON-адрес кошелька для оплат")
         db.set_setting("ton_wallet", w)
-    if body.ton_prices is not None:
-        for k, v in body.ton_prices.items():
-            if k in TON_PRICES:
-                db.set_setting(f"ton_price_{k}", max(0.0, float(v or 0)))
+    if body.star_rub is not None:
+        if body.star_rub <= 0:
+            raise HTTPException(400, "Цена звезды должна быть больше 0")
+        db.set_setting("star_rub", body.star_rub)
+    if body.ton_rub is not None:
+        if body.ton_rub <= 0:
+            raise HTTPException(400, "Курс TON должен быть больше 0")
+        db.set_setting("ton_rub", body.ton_rub)
     return settings.all_settings()
 
 
