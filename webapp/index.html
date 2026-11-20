@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>HashFan</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root{--bg:#18181b;--card:#26262b;--accent:#3b82f6;--text:#fff;--muted:#9ca3af;--fan:#7c3aed}
+*{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,system-ui,sans-serif}
+body{background:var(--bg);color:var(--text);min-height:100vh;padding:16px 16px 110px}
+.card{background:var(--card);border-radius:18px;padding:14px 16px;display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.icon{width:44px;height:44px;border-radius:50%;background:var(--accent);display:grid;place-items:center;font-size:22px}
+.card small{color:var(--muted);font-size:14px}.card b{font-size:18px;display:block}
+.fan-wrap{display:grid;place-items:center;margin:26px 0 14px}
+.fan{width:min(72vw,300px);aspect-ratio:1;animation:spin 1.2s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.mined{text-align:center;font:700 34px ui-monospace,Menlo,monospace;letter-spacing:-1px}
+.rate{text-align:center;color:var(--muted);margin:6px 0 4px;font-weight:600}
+.bar{height:6px;background:#333;border-radius:3px;overflow:hidden;margin:10px 0 18px}
+.bar i{display:block;height:100%;background:var(--accent);width:0}
+.btns{display:flex;gap:10px}
+button{flex:1;border:0;border-radius:16px;background:var(--accent);color:#fff;font-size:17px;font-weight:600;padding:16px;cursor:pointer}
+button:disabled{opacity:.45}
+nav{position:fixed;left:16px;right:16px;bottom:16px;background:var(--card);border-radius:22px;display:flex;padding:8px}
+nav a{flex:1;text-align:center;color:#ddd;font-size:12px;padding:8px 0;border-radius:14px;text-decoration:none}
+nav a span{display:block;font-size:22px}
+nav a.on{background:#1c1c20;color:var(--accent)}
+.page{display:none}.page.on{display:block}
+h2{margin:6px 0 14px}
+.row{justify-content:space-between}.row button{flex:0 0 auto;padding:10px 16px;font-size:14px}
+.toast{position:fixed;top:16px;left:50%;transform:translateX(-50%);background:#000c;padding:10px 16px;border-radius:12px;opacity:0;transition:.3s}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+<div id="home" class="page on">
+  <div class="card"><div class="icon">💎</div><div><small>Баланс</small><b id="bal">0</b></div></div>
+  <div class="fan-wrap">
+    <svg class="fan" viewBox="0 0 200 200">
+      <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#a78bfa"/><stop offset="1" stop-color="#5b21b6"/></linearGradient></defs>
+      <circle cx="100" cy="100" r="97" fill="#2e1065" stroke="#7c3aed" stroke-width="4"/>
+      <g id="blades"></g>
+      <circle cx="100" cy="100" r="20" fill="#4c1d95" stroke="#a78bfa" stroke-width="3"/>
+      <text x="100" y="107" text-anchor="middle" font-size="20" fill="#ddd6fe" font-weight="700">#</text>
+    </svg>
+  </div>
+  <div class="mined" id="mined">0.0000000000</div>
+  <div class="rate" id="rate">— GH/s ⚡</div>
+  <div class="bar"><i id="fill"></i></div>
+  <div class="btns">
+    <button id="claim">🪙 Забрать</button>
+    <button id="upg">🚀 Улучшить</button>
+  </div>
+  <p class="rate" id="upginfo" style="font-size:13px;margin-top:10px"></p>
+</div>
+
+<div id="friends" class="page">
+  <h2>Друзья</h2>
+  <p class="rate" style="text-align:left">+10% к хешрейту и бонус за каждого друга</p>
+  <div class="btns" style="margin:14px 0"><button id="invite">📨 Пригласить</button><button id="copy">📋 Копировать</button></div>
+  <div id="flist"></div>
+</div>
+
+<div id="missions" class="page"><h2>Миссии</h2><div id="mlist"></div></div>
+
+<nav>
+  <a data-p="friends"><span>👥</span>Друзья</a>
+  <a data-p="home" class="on"><span>🌀</span>Главная</a>
+  <a data-p="missions"><span>🎯</span>Миссии</a>
+</nav>
+<div class="toast" id="toast"></div>
+
+<script>
+const tg = Telegram.WebApp; tg.ready(); tg.expand();
+tg.setHeaderColor?.('#18181b'); tg.setBackgroundColor?.('#18181b');
+const $ = id => document.getElementById(id);
+let S = null, base = 0, t0 = 0, link = '';
+
+// лопасти вентилятора
+const blades = $('blades');
+for (let i = 0; i < 9; i++) {
+  const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  p.setAttribute('d', 'M100 100 C 110 60, 150 40, 170 60 C 150 70, 125 85, 100 100Z');
+  p.setAttribute('fill', 'url(#g)'); p.setAttribute('stroke', '#c4b5fd'); p.setAttribute('stroke-width', '1');
+  p.setAttribute('transform', `rotate(${i * 40} 100 100)`); blades.appendChild(p);
+}
+
+async function api(path, method = 'GET') {
+  const r = await fetch(path, { method, headers: { 'X-Init-Data': tg.initData } });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.detail || 'Ошибка');
+  return j;
+}
+function toast(t) { const e = $('toast'); e.textContent = t; e.classList.add('show'); setTimeout(() => e.classList.remove('show'), 2000); }
+const fmt = (n, d = 4) => Number(n).toFixed(d);
+
+function render(s) {
+  S = s; base = s.pending; t0 = performance.now();
+  $('bal').textContent = `${fmt(s.balance)} ${s.coin}`;
+  $('rate').textContent = `Ур. ${s.level} · ${Math.round(s.hashrate)} GH/s ⚡`;
+  const n = s.next_level;
+  $('upg').disabled = !n || s.balance < n.price;
+  $('upginfo').textContent = n ? `След. уровень: ${n.hashrate} GH/s за ${n.price} ${s.coin}` : 'Максимальный уровень';
+}
+function tick() {
+  if (S) {
+    const max = S.rate_per_sec * S.storage_hours * 3600;
+    const v = Math.min(base + S.rate_per_sec * (performance.now() - t0) / 1000, max);
+    $('mined').textContent = `${fmt(v, 10)} ${S.coin}`;
+    $('fill').style.width = (v / max * 100) + '%';
+  }
+  requestAnimationFrame(tick);
+}
+
+$('claim').onclick = async () => {
+  try { const r = await api('/api/claim', 'POST'); render(r); toast(`+${fmt(r.claimed, 6)}`); tg.HapticFeedback?.notificationOccurred('success'); }
+  catch (e) { toast(e.message); }
+};
+$('upg').onclick = async () => {
+  try { render(await api('/api/upgrade', 'POST')); toast('Ферма улучшена!'); tg.HapticFeedback?.impactOccurred('heavy'); }
+  catch (e) { toast(e.message); }
+};
+
+async function loadFriends() {
+  const r = await api('/api/friends'); link = r.link;
+  $('flist').innerHTML = r.friends.length ? '' : '<p class="rate">Пока никого нет</p>';
+  r.friends.forEach(f => {
+    const d = document.createElement('div'); d.className = 'card';
+    d.innerHTML = `<div class="icon">👤</div><div><b></b><small>Уровень ${f.level + 1}</small></div>`;
+    d.querySelector('b').textContent = f.name || 'Игрок'; $('flist').appendChild(d);
+  });
+}
+$('invite').onclick = () => tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent('Майни со мной в HashFan!')}`);
+$('copy').onclick = () => navigator.clipboard.writeText(link).then(() => toast('Ссылка скопирована'));
+
+async function loadMissions() {
+  const r = await api('/api/missions'); $('mlist').innerHTML = '';
+  r.missions.forEach(m => {
+    const d = document.createElement('div'); d.className = 'card row';
+    d.innerHTML = `<div><b></b><small>+${m.reward} ${S?.coin || ''}</small></div><button ${m.done ? 'disabled' : ''}>${m.done ? '✓' : 'Выполнить'}</button>`;
+    d.querySelector('b').textContent = m.title;
+    d.querySelector('button').onclick = async () => {
+      if (m.url) tg.openTelegramLink(m.url);
+      try { await api('/api/missions/' + m.id, 'POST'); toast('Награда получена!'); loadMissions(); render(await api('/api/state')); }
+      catch (e) { toast(e.message); }
+    };
+    $('mlist').appendChild(d);
+  });
+}
+
+document.querySelectorAll('nav a').forEach(a => a.onclick = () => {
+  document.querySelectorAll('nav a, .page').forEach(e => e.classList.remove('on'));
+  a.classList.add('on'); $(a.dataset.p).classList.add('on');
+  if (a.dataset.p === 'friends') loadFriends();
+  if (a.dataset.p === 'missions') loadMissions();
+});
+
+api('/api/state').then(render).catch(e => { $('mined').textContent = 'Откройте через Telegram'; $('mined').style.fontSize = '18px'; });
+setInterval(() => api('/api/state').then(render).catch(() => {}), 30000);
+tick();
+</script>
+</body>
+</html>
