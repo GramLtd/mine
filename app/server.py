@@ -18,7 +18,7 @@ WEB = Path(__file__).resolve().parent.parent / "webapp"
 ADMIN_UI = Path(__file__).resolve().parent / "admin_ui"  # не публикуется как статика
 api = FastAPI()
 bot = None  # выставляется из main.py
-log = logging.getLogger("hashfan")
+log = logging.getLogger("toncry")
 
 
 def is_admin(tg) -> bool:

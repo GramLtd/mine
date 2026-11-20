@@ -86,7 +86,7 @@ async function loadStats() {
   const tiles = [
     ['people', 'Игроки', s.users.toLocaleString('ru'), `+${s.new_24h} за сутки`],
     ['bolt', 'Активные 24ч', s.active_24h.toLocaleString('ru')],
-    ['star', 'Stars всего', `★ ${s.stars_total.toLocaleString('ru')}`, `+${s.stars_24h} за сутки`],
+    ['tgstar', 'Stars всего', s.stars_total.toLocaleString('ru'), `+${s.stars_24h} за сутки`],
     ['bag', 'Покупок', s.payments.toLocaleString('ru')],
     ['down', 'Выводы ждут', s.wd_pending.toLocaleString('ru')],
     ['up', 'Выплачено', `${fmt(s.wd_paid, 2)}`],
@@ -94,7 +94,8 @@ async function loadStats() {
   const g = $('stats'); g.innerHTML = '';
   tiles.forEach(([ic, t, v, d]) => {
     const sm = el('small'); sm.innerHTML = `<svg width="14" height="14"><use href="#i-${ic}"/></svg>`; sm.append(t);
-    g.append(el('div', { class: 'tile' }, sm, el('b', { class: 'num' }, v), d ? el('i', {}, d) : null));
+    const vb = el('b', { class: 'num' }); if (ic === 'tgstar') vb.innerHTML = TGSTAR + ' '; vb.append(v);
+    g.append(el('div', { class: 'tile' }, sm, vb, d ? el('i', {}, d) : null));
   });
   g.append(el('div', { class: 'tile', style: 'grid-column:1/-1' }, el('small', {}, 'Монет на балансах'), el('b', { class: 'num' }, `${fmt(s.coins_total, 2)} ${S?.coin || ''}`)));
 }
@@ -139,9 +140,9 @@ async function loadPays() {
   if (!payments.length) box.append(el('div', { class: 'empty' }, 'Платежей пока нет'));
   payments.forEach(p => {
     const b = el('button', { class: 'pill', style: p.refunded ? '' : 'color:var(--red)', disabled: p.refunded ? '' : false }, p.refunded ? 'Возвращён' : 'Вернуть');
-    b.onclick = () => tg.showConfirm ? tg.showConfirm(`Вернуть ★${p.stars} пользователю ${p.name || p.user_id}?`, ok => ok && refund(p)) : refund(p);
-    box.append(el('div', { class: 'cell' }, icon('star', 'var(--orange)'),
-      el('div', { class: 'tx' }, el('b', {}, `★ ${p.stars} · ${p.item}`), el('small', {}, `${p.name || p.user_id}${p.username ? ' @' + p.username : ''} · ${ago(p.created)} назад`)), b));
+    b.onclick = () => tg.showConfirm ? tg.showConfirm(`Вернуть ${p.stars} Stars пользователю ${p.name || p.user_id}?`, ok => ok && refund(p)) : refund(p);
+    box.append(el('div', { class: 'cell' }, (() => { const d = el('div', { class: 'ic', style: 'background:var(--fill)' }); d.innerHTML = TGSTAR; return d; })(),
+      el('div', { class: 'tx' }, (() => { const b = el('b'); b.innerHTML = TGSTAR + ' '; b.append(`${p.stars} · ${p.item}`); return b; })(), el('small', {}, `${p.name || p.user_id}${p.username ? ' @' + p.username : ''} · ${ago(p.created)} назад`)), b));
   });
 }
 async function refund(p) {

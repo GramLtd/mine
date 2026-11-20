@@ -1,5 +1,5 @@
 [Unit]
-Description=HashFan Telegram bot + Mini App
+Description=TonCry Telegram bot + Mini App
 After=network-online.target
 Wants=network-online.target
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Установка HashFan на Ubuntu 22.04/24.04. Запуск: sudo bash deploy/install.sh your-domain.com
+# Установка TonCry на Ubuntu 22.04/24.04. Запуск: sudo bash deploy/install.sh your-domain.com
 set -euo pipefail
 DOMAIN="${1:?Укажите домен: sudo bash deploy/install.sh example.com}"
 APP=/opt/hashfan

@@ -15,7 +15,7 @@ def is_admin(u) -> bool:
 
 def kb():
     return InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text="Открыть HashFan", web_app=WebAppInfo(url=WEBAPP_URL))
+        InlineKeyboardButton(text="Открыть TonCry", web_app=WebAppInfo(url=WEBAPP_URL))
     ]])
 
 
