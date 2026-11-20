@@ -560,9 +560,9 @@ function render(s) {
 let lastHint = 0;
 function updHint() {
   if (!S) return;
-  const h = $('hint'), max = S.rate_per_sec * S.storage_hours * 3600;
+  const h = $('hint');
   if (!S.active_count) { h.className = 'hint'; h.textContent = S.pending > 0 ? 'Заберите остаток намайненного' : 'Арендуйте сервер, чтобы начать'; return; }
-  const v = Math.min(base + S.rate_per_sec * (performance.now() - t0) / 1000, max), left = (max - v) / S.rate_per_sec;
+  const left = S.storage_end - S.server_time - (performance.now() - t0) / 1000;
   const daily = `≈ ${fmt(S.rate_per_sec * 86400, 3)} ${S.coin} в день`;
   if (left <= 1) { h.className = 'hint warn'; h.textContent = 'Хранилище заполнено — нажмите «Забрать», чтобы майнинг продолжился'; }
   else { h.className = 'hint'; const hh = Math.floor(left / 3600), mm = Math.floor(left % 3600 / 60); h.textContent = `${daily} · заполнится через ${hh ? hh + ' ч ' : ''}${mm} мин`; }
@@ -570,10 +570,11 @@ function updHint() {
 function tick() {
   if (performance.now() - lastHint > 1000) { lastHint = performance.now(); updHint(); }
   if (S) {
-    const max = S.rate_per_sec * S.storage_hours * 3600;
-    const v = Math.min(base + S.rate_per_sec * (performance.now() - t0) / 1000, max);
+    // майнинг идёт до заполнения хранилища (по времени от последнего «Забрать»), скорость — текущая
+    const dt = (performance.now() - t0) / 1000, endIn = S.storage_end - S.server_time, total = S.storage_hours * 3600;
+    const v = base + S.rate_per_sec * Math.max(0, Math.min(dt, endIn));
     $('minedv').textContent = fmt(v, 10);
-    $('ring').style.strokeDashoffset = max ? RING * (1 - v / max) : RING;
+    $('ring').style.strokeDashoffset = (S.active_count || base > 0) ? RING * Math.min(1, Math.max(0, endIn - dt) / total) : RING;
   }
   requestAnimationFrame(tick);
 }

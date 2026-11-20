@@ -83,12 +83,19 @@ def hashrate(user, now=None) -> float:
     return sum(tier_hashrate(s["tier"]) for s in active_servers(user, now)) * ref_mult(user) * boost(user, now)
 
 
+def storage_end(user) -> float:
+    """Хранилище заполняется за storage_hours после последнего «Забрать» — дальше майнинг стоит."""
+    return user["last_claim"] + storage_hours(user) * 3600
+
+
 def pending(user, now=None) -> float:
-    """Начисление за [last_claim, now] по каждому серверу (с учётом истечения аренды и буста), минус комиссия."""
+    """Накоплено в хранилище: зафиксированная часть (acc) + начисление с момента фиксации по текущим серверам."""
     now = now or time.time()
-    start = max(user["last_claim"], now - storage_hours(user) * 3600)
+    acc = user.get("acc") or 0.0
+    start = max(user["last_claim"], user.get("acc_since") or 0)
+    now = min(now, storage_end(user))
     if now <= start:
-        return 0.0
+        return acc
     bu, mult = user.get("boost_until") or 0, user.get("boost_mult") or 1
     gh_secs = 0.0
     for s in db.servers(user["id"], 0):
@@ -98,15 +105,25 @@ def pending(user, now=None) -> float:
             continue
         boosted = max(0.0, min(end, bu) - a)
         gh_secs += tier_hashrate(s["tier"]) * ((end - a - boosted) + boosted * mult)
-    return gh_secs * ref_mult(user) * COIN_PER_GH_PER_SEC * (1 - fee(user))
+    return acc + gh_secs * ref_mult(user) * COIN_PER_GH_PER_SEC * (1 - fee(user))
+
+
+def rebase(user, now=None):
+    """Зафиксировать накопленное по старой мощности, не забирая его, — дальше майнинг идёт с новой мощностью."""
+    now = now or time.time()
+    amount = pending(user, now)
+    if amount <= 0:  # ничего не накоплено (например, первый сервер) — новый цикл хранилища с этого момента
+        db.update(user["id"], acc=0.0, acc_since=now, last_claim=now)
+    else:
+        db.update(user["id"], acc=amount, acc_since=now)
 
 
 def settle(user, now=None):
-    """Зачислить накопленное и сбросить таймер (перед изменением набора серверов/скорости)."""
+    """«Забрать»: перевести накопленное на баланс и начать новый цикл хранилища."""
     now = now or time.time()
-    acc = pending(user, now)
-    db.update(user["id"], balance=user["balance"] + acc, last_claim=now)
-    return acc
+    amount = pending(user, now)
+    db.update(user["id"], balance=user["balance"] + amount, last_claim=now, acc=0.0, acc_since=now)
+    return amount
 
 
 # ---------- товары: srv:<tier>, upg:<server_id>, ren:<server_id>, nofee, topup, товары SHOP ----------
@@ -195,31 +212,30 @@ def apply_item(uid: int, item: str, paid_ton: float = 0.0) -> str | None:
             if paid_ton:
                 db.add_balance(uid, paid_ton)
             return "Сервер закончился на складе — оплата возвращена на баланс"
-        settle(user, now)
+        rebase(user, now)
         db.server_add(uid, t, RENT_DAYS)
         db.update(uid, bought_server=1)
     elif kind == "upg":
         s = db.server_get(int(arg))
-        settle(user, now)
+        rebase(user, now)
         db.server_update(s["id"], tier=s["tier"] + 1)
     elif kind == "ren":
         s = db.server_get(int(arg))
-        settle(user, now)
+        rebase(user, now)
         if s["expires"] <= now:  # истёкший сервер запускается заново
             db.server_update(s["id"], created=now, expires=now + RENT_DAYS * 86400, expiry_notified=0)
         else:
             db.server_update(s["id"], expires=s["expires"] + RENT_DAYS * 86400, expiry_notified=0)
     elif item == "nofee":
-        settle(user, now)
+        rebase(user, now)
         db.update(uid, no_fee=1)
     elif item in ("boost2", "boost3"):
         mult = 2 if item == "boost2" else 3
-        acc = pending(user, now)
+        rebase(user, now)
         cur_until = user["boost_until"] if user["boost_until"] > now and user["boost_mult"] == mult else now
-        db.update(uid, balance=user["balance"] + acc, last_claim=now,
-                  boost_mult=mult, boost_until=cur_until + 86400)
+        db.update(uid, boost_mult=mult, boost_until=cur_until + 86400)
     elif item in STORAGE_ITEMS:
-        settle(user, now)
+        rebase(user, now)
         db.update(uid, storage_hours=max(storage_hours(user), STORAGE_ITEMS[item]))
     elif item.startswith("skin_"):
         owned = set(filter(None, (user.get("skins") or "").split(",")))
@@ -254,6 +270,8 @@ def state(user, is_admin=False) -> dict:
         "withdraw_enabled": settings.withdraw_enabled(),
         "balance": user["balance"],
         "pending": pending(user, now),
+        "storage_end": storage_end(user),
+        "server_time": now,
         "hashrate": hr,
         "rate_per_sec": hr * COIN_PER_GH_PER_SEC * (1 - f),
         "storage_hours": storage_hours(user),

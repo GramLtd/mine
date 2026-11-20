@@ -281,7 +281,7 @@ def a_edit(uid: int, body: UserEdit, _=Depends(admin)):
     user = db.get(uid)
     if not user:
         raise HTTPException(404, "Пользователь не найден")
-    game.settle(user)
+    game.rebase(user)
     f = {}
     if body.balance is not None:
         f["balance"] = max(0.0, body.balance)
@@ -309,7 +309,7 @@ async def a_grant(uid: int, body: GrantIn, _=Depends(admin)):
     if not (body.item in SHOP or body.item == "nofee" or body.item.startswith("srv:")):
         raise HTTPException(400, "Нет такого товара")
     if body.item.startswith("srv:"):  # выдача сервера не тратит склад
-        game.settle(db.get(uid))
+        game.rebase(db.get(uid))
         db.server_add(uid, int(body.item[4:]), RENT_DAYS)
     else:
         game.apply_item(uid, body.item)

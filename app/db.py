@@ -97,7 +97,7 @@ def init():
                 c.execute(f"ALTER TABLE users ADD COLUMN {col} {ddl}")
         if "activated" not in cols:
             c.execute("ALTER TABLE users ADD COLUMN activated INTEGER DEFAULT 1")
-        for col, ddl in [("no_fee", "INTEGER DEFAULT 0"), ("bought_server", "INTEGER DEFAULT 0"), ("tutorial_done", "INTEGER DEFAULT 0")]:
+        for col, ddl in [("no_fee", "INTEGER DEFAULT 0"), ("bought_server", "INTEGER DEFAULT 0"), ("tutorial_done", "INTEGER DEFAULT 0"), ("acc", "REAL DEFAULT 0"), ("acc_since", "REAL DEFAULT 0")]:
             if col not in cols:
                 c.execute(f"ALTER TABLE users ADD COLUMN {col} {ddl}")
         if "ref_paid" not in cols:  # бонус за друга — когда он арендует первый сервер; старым не платим повторно
