@@ -6,7 +6,7 @@ import secrets
 
 from aiogram.types import (Message, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo,
                            PreCheckoutQuery, InlineQuery, InlineQueryResultArticle, InputTextMessageContent,
-                           InlineQueryResultsButton, ChosenInlineResult, CallbackQuery)
+                           InlineQueryResultsButton, ChosenInlineResult, CallbackQuery, InlineQueryResultPhoto)
 
 from . import db, game, settings
 from .config import WEBAPP_URL, SHOP, ADMIN_IDS, ADMIN_USERNAMES
@@ -126,7 +126,11 @@ def _amount(text: str):
 
 def _check_kb(cid, creator, amount):
     return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(
-        text=f"Получить {amount:g} {settings.coin()}", callback_data=f"c:{creator}:{round(amount * 10000)}:{cid}")]])
+        text=f"💎 Получить {amount:g} {settings.coin()}", callback_data=f"c:{creator}:{round(amount * 10000)}:{cid}")]])
+
+
+def _done_kb(text, bot_username):
+    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=text, url=f"https://t.me/{bot_username}")]])
 
 
 @router.inline_query()
@@ -147,11 +151,15 @@ async def inline_check(q: InlineQuery):
         return await q.answer([], cache_time=0, is_personal=True,
                               button=open_btn(f"Недостаточно средств · баланс {bal:.4f} {coin}"))
     cid = secrets.token_hex(6)
-    text = (f"💎 <b>Чек на {amount:g} {coin}</b>\n\n"
-            f"Нажмите кнопку ниже, чтобы получить {coin} на баланс.")
-    await q.answer([InlineQueryResultArticle(
-        id=cid, title=f"Чек на {amount:g} {coin}", description=f"Спишется с баланса · осталось {bal - amount:.4f}",
-        input_message_content=InputTextMessageContent(message_text=text, parse_mode="HTML"),
+    from .server import _rub
+    rub = _rub(amount)
+    caption = f"🎁 Чек на 💎 <b>{amount:g} {coin}</b>" + (f" (≈ {rub} ₽)" if rub else "") + "."
+    base = WEBAPP_URL.rstrip("/")
+    await q.answer([InlineQueryResultPhoto(
+        id=cid, photo_url=f"{base}/check/{amount:g}.jpg", thumbnail_url=f"{base}/check/{amount:g}.jpg?thumb=1",
+        photo_width=1280, photo_height=720, title=f"Чек на {amount:g} {coin}",
+        description=f"Спишется с баланса · осталось {bal - amount:.4f}",
+        caption=caption, parse_mode="HTML",
         reply_markup=_check_kb(cid, q.from_user.id, amount))], cache_time=0, is_personal=True)
 
 
@@ -164,8 +172,9 @@ async def chosen_check(r: ChosenInlineResult):
     status = db.check_reserve(r.result_id, r.from_user.id, amount)
     if status == "failed" and r.inline_message_id:
         try:
-            await r.bot.edit_message_text(inline_message_id=r.inline_message_id,
-                                          text="❌ Чек недействителен: недостаточно средств у отправителя.")
+            me = await r.bot.me()
+            await r.bot.edit_message_reply_markup(inline_message_id=r.inline_message_id,
+                                                  reply_markup=_done_kb("❌ Недостаточно средств", me.username))
         except Exception:
             pass
 
@@ -178,13 +187,19 @@ async def claim_check(cb: CallbackQuery):
     except ValueError:
         return await cb.answer()
     coin = settings.coin()
-    edit = lambda t: cb.bot.edit_message_text(inline_message_id=cb.inline_message_id, text=t, parse_mode="HTML") \
-        if cb.inline_message_id else cb.message.edit_text(t, parse_mode="HTML")
+    me = await cb.bot.me()
+
+    async def edit(label):  # меняем кнопку на «✅ Получено» со ссылкой на бота
+        mk = _done_kb(label, me.username)
+        if cb.inline_message_id:
+            await cb.bot.edit_message_reply_markup(inline_message_id=cb.inline_message_id, reply_markup=mk)
+        else:
+            await cb.message.edit_reply_markup(reply_markup=mk)
     if cb.from_user.id == creator:
         if db.check_cancel(cid, creator, amount) == "ok":
             await cb.answer(f"Чек отменён, {amount:g} {coin} вернулись на баланс", show_alert=True)
             try:
-                await edit(f"🚫 Чек на {amount:g} {coin} отменён отправителем.")
+                await edit(f"🚫 Отменён: {amount:g} {coin}")
             except Exception:
                 pass
         else:
@@ -198,7 +213,7 @@ async def claim_check(cb: CallbackQuery):
         name = html.escape(cb.from_user.first_name or "")
         await cb.answer(f"+{amount:g} {coin} на баланс!", show_alert=True)
         try:
-            await edit(f"✅ Чек на <b>{amount:g} {coin}</b> получил {name}.")
+            await edit(f"✅ Получено: {amount:g} {coin}")
         except Exception:
             pass
         try:

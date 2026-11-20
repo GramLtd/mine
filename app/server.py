@@ -492,6 +492,27 @@ def a_ui(_=Depends(admin)):
 
 
 # ---------- статика ----------
+def _rub(amount: float) -> str:
+    try:
+        return f"{amount * settings.ton_rub():,.0f}".replace(",", " ")
+    except Exception:
+        return ""
+
+
+@api.get("/check/{amount}.jpg")
+def check_image(amount: str, thumb: int = 0):
+    from fastapi import Response
+    from . import checkimg
+    try:
+        a = float(amount)
+        assert 0 < a <= 10_000_000
+    except (ValueError, AssertionError):
+        raise HTTPException(404)
+    txt = f"{a:g}"
+    data = checkimg.thumb(txt, settings.coin()) if thumb else checkimg.render(txt, settings.coin(), _rub(a))
+    return Response(data, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=86400"})
+
+
 @api.get("/tonconnect-manifest.json")
 def tonconnect_manifest():
     base = WEBAPP_URL.rstrip("/")
