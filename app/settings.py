@@ -1,5 +1,5 @@
 from . import db
-from .config import COIN, DEFAULT_WELCOME, MIN_WITHDRAW, TON_WALLET, STAR_RUB, TON_RUB_FALLBACK
+from .config import COIN, DEFAULT_WELCOME, MIN_WITHDRAW, TON_WALLET, STAR_RUB, TON_RUB_FALLBACK, ACTIVATION_TON
 
 
 def coin() -> str:
@@ -57,6 +57,15 @@ def stars_to_ton(stars: int) -> float:
     return max(0.01, round(stars * star_rub() / ton_rub(), 2))
 
 
+def activation_ton() -> float:
+    return float(db.get_setting("activation_ton", ACTIVATION_TON))
+
+
+def ton_to_stars(amount: float) -> int:
+    import math
+    return max(1, math.ceil(amount * ton_rub() / star_rub()))
+
+
 def ton_enabled() -> bool:
     return bool(ton_wallet())
 
@@ -70,6 +79,7 @@ def all_settings() -> dict:
         "support_username": support(),
         "ton_wallet": ton_wallet(),
         "star_rub": star_rub(),
+        "activation_ton": activation_ton(),
         "ton_rub": ton_rub_fallback(),
         "ton_rub_live": ton_rub(),
     }

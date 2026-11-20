@@ -50,6 +50,7 @@ input,textarea{font:inherit;color:var(--label)}
 .balance small{display:block;color:var(--label2);font-size:13px;font-weight:500;margin-bottom:2px}
 .balance b{font-size:28px;font-weight:700;letter-spacing:-.03em}
 .balance b span{font-size:17px;color:var(--label2);font-weight:600;margin-left:4px}
+.pill.sm{font-size:14px;padding:0 11px}
 .chip{font-size:13px;font-weight:600;padding:6px 11px;border-radius:999px;background:var(--fill);color:var(--label2);white-space:nowrap}
 .chip.boost{background:linear-gradient(135deg,var(--orange),var(--pink));color:#fff}
 
@@ -57,19 +58,18 @@ input,textarea{font:inherit;color:var(--label)}
 .stage svg{position:absolute;inset:0;width:100%;height:100%}
 .ring-bg{stroke:var(--fill)}
 .ring{transition:stroke-dashoffset .6s cubic-bezier(.2,.8,.2,1)}
-.fan{position:absolute;inset:11%;border-radius:50%;overflow:hidden;
-  background:radial-gradient(circle at 30% 25%,#8E8BFF 0%,#5E5CE6 35%,#3A2FA8 70%,#1E1760 100%);
-  box-shadow:inset 0 2px 6px rgba(255,255,255,.35),inset 0 -12px 30px rgba(0,0,0,.35),0 20px 50px -10px rgba(94,92,230,.55)}
-.fan[data-skin="skin_gold"]{background:radial-gradient(circle at 30% 25%,#FFE9A3 0%,#F5B83D 35%,#B9770E 70%,#5C3A05 100%);box-shadow:inset 0 2px 6px rgba(255,255,255,.4),inset 0 -12px 30px rgba(0,0,0,.35),0 20px 50px -10px rgba(245,184,61,.55)}
-.fan[data-skin="skin_emerald"]{background:radial-gradient(circle at 30% 25%,#A6F4C5 0%,#30D158 35%,#138A3A 70%,#053D19 100%);box-shadow:inset 0 2px 6px rgba(255,255,255,.4),inset 0 -12px 30px rgba(0,0,0,.35),0 20px 50px -10px rgba(48,209,88,.5)}
-.fan[data-skin="skin_crimson"]{background:radial-gradient(circle at 30% 25%,#FFB3BF 0%,#FF375F 35%,#B0102F 70%,#4D0514 100%);box-shadow:inset 0 2px 6px rgba(255,255,255,.4),inset 0 -12px 30px rgba(0,0,0,.35),0 20px 50px -10px rgba(255,55,95,.5)}
-.fan[data-skin="skin_ice"]{background:radial-gradient(circle at 30% 25%,#FFFFFF 0%,#BDE6FF 35%,#5AC8FA 70%,#1A6E9E 100%);box-shadow:inset 0 2px 6px rgba(255,255,255,.6),inset 0 -12px 30px rgba(0,0,0,.25),0 20px 50px -10px rgba(90,200,250,.55)}
-.fan[data-skin="skin_black"]{background:radial-gradient(circle at 30% 25%,#6E6E73 0%,#2C2C2E 35%,#111 70%,#000 100%);box-shadow:inset 0 2px 6px rgba(255,255,255,.3),inset 0 -12px 30px rgba(0,0,0,.5),0 20px 50px -10px rgba(0,0,0,.6)}
+.fan{position:absolute;inset:9%;border-radius:50%;--b1:#D9C2FF;--b2:#8A4DFF;--b3:#3D119E;--rim:#6B2BE0;--hub:#4A16B8;
+  filter:drop-shadow(0 18px 40px color-mix(in srgb,var(--b2) 55%,transparent))}
+.fan[data-skin="skin_gold"]{--b1:#FFF0BF;--b2:#F5B83D;--b3:#7A4A06;--rim:#C98A16;--hub:#8F5A0A}
+.fan[data-skin="skin_emerald"]{--b1:#C8F8DA;--b2:#30D158;--b3:#0B5A26;--rim:#1F9E45;--hub:#0E6B2D}
+.fan[data-skin="skin_crimson"]{--b1:#FFC9D3;--b2:#FF375F;--b3:#7A0A20;--rim:#D01C45;--hub:#8C0F28}
+.fan[data-skin="skin_ice"]{--b1:#FFFFFF;--b2:#7FD4FF;--b3:#1A6E9E;--rim:#4FB6EC;--hub:#1F7FB5}
+.fan[data-skin="skin_black"]{--b1:#9A9AA0;--b2:#3A3A3E;--b3:#0A0A0B;--rim:#2C2C2E;--hub:#1C1C1E}
+.fan svg{position:absolute;inset:0;width:100%;height:100%}
+.fan .rotor{transform-origin:100px 100px;animation:spin var(--spin,1.4s) linear infinite}
+.fan.off .rotor{animation-play-state:paused}
 .swatch{width:32px;height:32px;border-radius:50%;flex:none;box-shadow:inset 0 1px 3px rgba(255,255,255,.4),0 0 0 .5px var(--sep)}
-.fan svg{animation:spin var(--spin,1.4s) linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
-.fan::after{content:"";position:absolute;inset:0;border-radius:50%;
-  background:linear-gradient(160deg,rgba(255,255,255,.35) 0%,rgba(255,255,255,0) 40%);pointer-events:none}
 
 .mined{text-align:center;font-size:36px;font-weight:700;letter-spacing:-.04em;margin-top:6px}
 .mined span{color:var(--label2);font-size:20px;font-weight:600;letter-spacing:-.02em}
@@ -190,8 +190,8 @@ textarea{width:100%;min-height:140px;border:0;outline:none;background:var(--bg2)
   <div class="balance">
     <div><small>Баланс</small><b class="num" id="bal">0.0000<span>HASH</span></b></div>
     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
-      <div class="chip" id="lvlchip">Ур. 1</div>
-      <button class="pill" id="wdopen">Вывести</button>
+      <div class="chip" id="lvlchip">Сервер 1</div>
+      <div style="display:flex;gap:6px"><button class="pill sm" id="topopen" style="background:var(--blue);color:#fff">Пополнить</button><button class="pill sm" id="wdopen">Вывести</button></div>
     </div>
   </div>
 
@@ -204,11 +204,21 @@ textarea{width:100%;min-height:140px;border:0;outline:none;background:var(--bg2)
     </svg>
     <div class="fan">
       <svg viewBox="0 0 200 200">
-        <defs><linearGradient id="bl" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".95"/><stop offset="1" stop-color="#C7C6FF" stop-opacity=".55"/></linearGradient></defs>
-        <g id="blades"></g>
-        <circle cx="100" cy="100" r="22" fill="#2B2390"/>
-        <circle cx="100" cy="100" r="22" fill="none" stroke="rgba(255,255,255,.5)" stroke-width="1.5"/>
-        <circle cx="100" cy="100" r="7" fill="#fff" opacity=".9"/>
+        <defs>
+          <radialGradient id="fRim" cx=".35" cy=".3" r=".8"><stop offset="0" style="stop-color:var(--b1)"/><stop offset=".45" style="stop-color:var(--rim)"/><stop offset="1" style="stop-color:var(--b3)"/></radialGradient>
+          <radialGradient id="fHouse" cx=".5" cy=".5" r=".5"><stop offset=".2" style="stop-color:var(--b3)"/><stop offset="1" style="stop-color:var(--b3);stop-opacity:.75"/></radialGradient>
+          <linearGradient id="fBlade" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:var(--b1)"/><stop offset=".45" style="stop-color:var(--b2)"/><stop offset="1" style="stop-color:var(--b3)"/></linearGradient>
+          <radialGradient id="fHub" cx=".35" cy=".3" r=".9"><stop offset="0" style="stop-color:var(--b1)"/><stop offset=".5" style="stop-color:var(--b2)"/><stop offset="1" style="stop-color:var(--hub)"/></radialGradient>
+        </defs>
+        <circle cx="100" cy="100" r="99" fill="url(#fRim)"/>
+        <circle cx="100" cy="100" r="92" fill="url(#fHouse)"/>
+        <circle cx="100" cy="100" r="92" fill="none" stroke="rgba(0,0,0,.45)" stroke-width="2"/>
+        <g class="rotor"><g id="blades" transform="translate(100 100) scale(.88) translate(-100 -100)"></g>
+          <circle cx="100" cy="100" r="24" fill="url(#fHub)" stroke="rgba(255,255,255,.55)" stroke-width="1.2"/>
+          <circle cx="100" cy="100" r="18" fill="none" stroke="rgba(0,0,0,.25)" stroke-width="1"/>
+        </g>
+        <path d="M90 92.5h20L100 110.5z M100 92.5v18" fill="none" stroke="#fff" stroke-width="2.4" stroke-linejoin="round" opacity=".95"/>
+        <circle cx="100" cy="100" r="98" fill="none" stroke="rgba(255,255,255,.35)" stroke-width=".8"/>
       </svg>
     </div>
   </div>
@@ -216,7 +226,16 @@ textarea{width:100%;min-height:140px;border:0;outline:none;background:var(--bg2)
   <div class="mined num" id="mined">0.0000000000<span id="minedcoin"></span></div>
   <div class="sub" id="rate">— GH/s</div>
 
-  <div class="actions">
+  <div class="group" id="act-box" hidden style="margin-top:14px">
+    <div class="cell"><div class="ic" style="background:var(--green)"><svg><use href="#i-bolt"/></svg></div>
+      <div class="tx"><b>Запустите майнинг</b><small>Разовая оплата — сервер будет майнить всегда</small></div></div>
+    <div style="display:flex;gap:8px;padding:0 16px 14px">
+      <button class="btn primary" id="act-ton" style="height:46px"></button>
+      <button class="btn tinted" id="act-star" style="height:46px"></button>
+    </div>
+  </div>
+
+  <div class="actions" id="main-actions">
     <button class="btn primary" id="claim"><svg><use href="#i-down"/></svg>Забрать</button>
     <button class="btn tinted" id="upg"><svg><use href="#i-up"/></svg>Улучшить</button>
   </div>
@@ -250,13 +269,15 @@ textarea{width:100%;min-height:140px;border:0;outline:none;background:var(--bg2)
 <!-- ============ МАГАЗИН ============ -->
 <section id="shop" class="page">
   <h1 class="large-title">Магазин</h1>
-  <div class="caption">Бусты и уровни</div>
+  <div class="caption">Серверы</div>
+  <div class="group" id="s-servers"></div>
+  <div class="caption">Бусты</div>
   <div class="group" id="s-boost"></div>
   <div class="caption">Хранилище</div>
   <div class="group" id="s-storage"></div>
   <div class="caption">Скины вентилятора</div>
   <div class="group" id="s-skin"></div>
-  <p class="footnote">Оплата Telegram Stars проходит внутри Telegram.</p>
+  <p class="footnote">Оплата Telegram Stars проходит внутри Telegram. Цены в TON списываются с баланса, если на нём хватает средств, иначе — оплата через кошелёк.</p>
 </section>
 
 <div id="admin-root"></div>
@@ -291,6 +312,20 @@ textarea{width:100%;min-height:140px;border:0;outline:none;background:var(--bg2)
   <button class="btn primary" id="wd-send" style="width:100%;margin-top:16px">Создать заявку</button>
   <div class="caption">История</div>
   <div class="group" id="wd-hist"></div>
+</div>
+
+<!-- ============ ПОПОЛНЕНИЕ ============ -->
+<div class="scrim" id="top-scrim"></div>
+<div class="sheet" id="top-sheet">
+  <div class="grabber"></div>
+  <div class="sheet-head"><button id="top-cancel">Закрыть</button><h3>Пополнение</h3><span style="width:60px"></span></div>
+  <div class="caption">Сумма в TON</div>
+  <div class="group">
+    <label class="cell field noicon"><span>Сумма</span><input id="top-amount" type="number" step="any" min="0.1" inputmode="decimal" placeholder="0"></label>
+  </div>
+  <div id="top-quick" style="display:flex;gap:8px;margin-top:10px"></div>
+  <p class="footnote">1 TON = 1 на балансе. С баланса можно запускать майнинг, улучшать сервер и покупать всё в магазине.</p>
+  <button class="btn primary" id="top-pay" style="width:100%;margin-top:16px">Пополнить</button>
 </div>
 
 <!-- ============ ОПЛАТА В TON ============ -->
@@ -370,11 +405,13 @@ function showBanned(sup) {
 
 /* ---------- лопасти ---------- */
 const blades = $('blades');
-for (let i = 0; i < 7; i++) {
-  const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-  p.setAttribute('d', 'M100 100 C 96 70, 112 34, 146 26 C 156 24, 162 32, 156 42 C 140 64, 122 84, 100 100Z');
-  p.setAttribute('fill', 'url(#bl)'); p.setAttribute('transform', `rotate(${i * 360 / 7} 100 100)`);
-  blades.appendChild(p);
+for (let i = 0; i < 11; i++) {
+  const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  g.setAttribute('transform', `rotate(${i * 360 / 11} 100 100)`);
+  g.innerHTML = '<path d="M104 80 C108 56 126 26 152 22 C164 20 170 30 162 40 C146 58 132 76 120 96 Z" fill="rgba(0,0,0,.35)" transform="rotate(7 100 100)"/>'
+    + '<path d="M104 80 C108 56 126 26 152 22 C164 20 170 30 162 40 C146 58 132 76 120 96 Z" fill="url(#fBlade)" stroke="rgba(255,255,255,.55)" stroke-width=".9"/>'
+    + '<path d="M106 78 C110 56 128 28 152 25" fill="none" stroke="rgba(255,255,255,.7)" stroke-width="1.4" stroke-linecap="round"/>';
+  blades.appendChild(g);
 }
 
 /* ---------- главная ---------- */
@@ -384,13 +421,18 @@ function render(s) {
   S = s; base = s.pending; t0 = performance.now();
   $('bal').innerHTML = ''; $('bal').append(fmt(s.balance), el('span', {}, s.coin));
   $('minedcoin').textContent = ' ' + s.coin;
-  $('lvlchip').textContent = s.boost ? `×${s.boost.mult} буст` : `Ур. ${s.level}`;
+  $('lvlchip').textContent = s.boost ? `×${s.boost.mult} буст` : `Сервер ${s.level}`;
   $('lvlchip').className = 'chip' + (s.boost ? ' boost' : '');
-  $('rate').textContent = `${Math.round(s.hashrate).toLocaleString('ru')} GH/s · уровень ${s.level} из ${s.max_level}`;
+  $('rate').textContent = s.activated ? `${Math.round(s.hashrate).toLocaleString('ru')} GH/s · ${s.server.spec}` : `Майнинг не запущен · ${s.server.spec}`;
   const n = s.next_level;
   $('upg').disabled = !n || (s.balance < n.price && !s.ton_enabled);
-  $('upginfo').textContent = n ? `Следующий уровень — ${n.hashrate} GH/s за ${n.price} ${s.coin}` : 'Достигнут максимальный уровень';
+  const ns = s.servers[s.level];
+  $('upginfo').textContent = ns ? `Следующий сервер — ${ns.spec} · ${ns.hashrate} GH/s за ${ns.price} TON` : 'У вас максимальный сервер';
+  $('act-box').hidden = s.activated; $('claim').disabled = !s.activated;
+  $('act-ton').textContent = `Запустить · ${s.activation.ton} TON`;
+  $('act-star').innerHTML = TGSTAR; $('act-star').append(' ' + s.activation.stars);
   document.querySelector('.fan').dataset.skin = s.skin || '';
+  document.querySelector('.fan').classList.toggle('off', !s.activated);
   document.querySelector('.fan').style.setProperty('--spin', (1.6 / (s.boost?.mult || 1)) + 's');
   if (s.is_admin && !adminLoaded) loadAdminUI();
   renderShop(s);
@@ -400,7 +442,7 @@ function tick() {
     const max = S.rate_per_sec * S.storage_hours * 3600;
     const v = Math.min(base + S.rate_per_sec * (performance.now() - t0) / 1000, max);
     const m = $('mined'); m.firstChild ? m.firstChild.nodeValue = fmt(v, 10) : m.prepend(fmt(v, 10));
-    $('ring').style.strokeDashoffset = RING * (1 - v / max);
+    $('ring').style.strokeDashoffset = max ? RING * (1 - v / max) : RING;
   }
   requestAnimationFrame(tick);
 }
@@ -412,19 +454,29 @@ async function upgradeBalance() {
   try { render(await api('/api/upgrade', 'POST')); hud('Ферма улучшена'); haptic('impactOccurred', 'heavy'); }
   catch (e) { hud(e.message, false); }
 }
+// хватает на балансе — улучшаем сразу, не хватает — сразу оплата в TON
 $('upg').onclick = () => {
   const n = S?.next_level; if (!n) return;
-  if (!S.ton_enabled) { if (S.is_admin) hud('TON выключен: укажите кошелёк в админке → Оплата в TON', false); return upgradeBalance(); }
-  const enough = S.balance >= n.price;
-  tg.showPopup({
-    title: `Уровень ${S.level + 1} · ${n.hashrate} GH/s`,
-    message: `Цена — ${n.price} ${S.coin} с баланса или ${n.price} TON.` + (enough ? '' : ' На балансе недостаточно монет.'),
-    buttons: [...(enough ? [{ id: 'bal', type: 'default', text: `С баланса · ${n.price} ${S.coin}` }] : []),
-      { id: 'ton', type: 'default', text: `Оплатить ${n.price} TON` }, { type: 'cancel' }],
-  }, id => {
-    if (id === 'bal') upgradeBalance();
-    else if (id === 'ton') buyTon({ id: 'upgrade' }, $('upg'));
-  });
+  if (S.balance >= n.price) return upgradeBalance();
+  if (!S.ton_enabled) return hud(S.is_admin ? 'TON выключен: укажите кошелёк в админке → Оплата в TON' : 'Недостаточно средств на балансе', false);
+  buyTon({ id: 'upgrade' }, $('upg'));
+};
+// запуск майнинга
+$('act-ton').onclick = () => S.balance >= S.activation.ton ? buyBalance({ id: 'activate', title: 'Майнинг запущен' }) : buyTon({ id: 'activate' }, $('act-ton'));
+$('act-star').onclick = () => buy({ id: 'activate', title: 'Майнинг' }, $('act-star'));
+async function buyBalance(it) {
+  try { render(await api('/api/buy', 'POST', { item: it.id })); hud(`${it.title} — готово`); haptic('notificationOccurred', 'success'); }
+  catch (e) { hud(e.message, false); }
+}
+// пополнение
+function topSheet(on) { $('top-scrim').classList.toggle('on', on); $('top-sheet').classList.toggle('on', on); }
+$('top-scrim').onclick = $('top-cancel').onclick = () => topSheet(false);
+[1, 3, 5, 10].forEach(v => { const b = el('button', { class: 'pill', style: 'flex:1' }, `${v} TON`); b.onclick = () => $('top-amount').value = v; $('top-quick').append(b); });
+$('topopen').onclick = () => { if (!S?.ton_enabled) return hud('Пополнение временно недоступно', false); topSheet(true); };
+$('top-pay').onclick = () => {
+  const a = +$('top-amount').value;
+  if (!(a >= 0.1)) return hud('Минимум 0.1 TON', false);
+  topSheet(false); buyTon({ id: 'topup', amount: a }, $('top-pay'));
 };
 
 /* ---------- вывод ---------- */
@@ -468,11 +520,21 @@ async function loadWdHist() {
 /* ---------- магазин (Stars) ---------- */
 const SHOP_ICON = { boost2: ['bolt', 'var(--orange)'], boost3: ['bolt', 'var(--pink)'], level: ['up', 'var(--indigo)'], storage12: ['bag', 'var(--blue)'], storage24: ['bag', 'var(--indigo)'] };
 const SKIN_BG = { skin_gold: '#F5B83D', skin_emerald: '#30D158', skin_crimson: '#FF375F', skin_ice: '#BDE6FF', skin_black: '#2C2C2E', '': '#5E5CE6' };
-function tonBtn(it) { const b = el('button', { class: 'pill num', style: 'margin-left:6px' }, `${it.ton} TON`); b.onclick = () => buyTon(it, b); return b; }
+function tonBtn(it) { const b = el('button', { class: 'pill num', style: 'margin-left:6px' }, `${it.ton} TON`); b.onclick = () => S.balance >= it.ton ? buyBalance(it) : buyTon(it, b); return b; }
 function payBtns(it) { const sb = starBtn(it); if (!it.ton) return sb; const w = el('div', { style: 'display:flex;flex:none' }); w.append(sb, tonBtn(it)); return w; }
 function starBtn(it) { const b = el('button', { class: 'pill star num' }); b.innerHTML = TGSTAR; b.append(String(it.stars)); b.onclick = () => buy(it, b); return b; }
 function renderShop(s) {
-  ['boost', 'storage', 'skin'].forEach(c => $('s-' + c).innerHTML = '');
+  ['boost', 'storage', 'skin', 'servers'].forEach(c => $('s-' + c).innerHTML = '');
+  s.servers.forEach(sv => {
+    const cur = sv.n === s.level, own = sv.n < s.level, next = sv.n === s.level + 1;
+    let act;
+    if (cur) act = el('span', { class: 'val', style: 'color:var(--green)' }, 'Текущий');
+    else if (own) act = el('span', { class: 'val' }, '✓');
+    else if (next) { act = el('button', { class: 'pill num' }, `${sv.price} TON`); act.onclick = () => $('upg').onclick(); }
+    else act = el('span', { class: 'val num' }, `${sv.price} TON`);
+    $('s-servers').append(el('div', { class: 'cell', style: own ? 'opacity:.5' : '' }, icon('fan', cur ? 'var(--green)' : 'var(--indigo)'),
+      el('div', { class: 'tx' }, el('b', {}, sv.spec), el('small', {}, `${sv.hashrate.toLocaleString('ru')} GH/s`)), act));
+  });
   // базовый скин
   const def = el('button', { class: 'pill', disabled: !s.skin ? '' : false }, !s.skin ? 'Надет' : 'Надеть'); def.onclick = () => wearSkin('');
   $('s-skin').append(el('div', { class: 'cell' }, el('div', { class: 'swatch', style: `background:${SKIN_BG['']}` }), el('div', { class: 'tx' }, el('b', {}, 'Стандарт'), el('small', {}, 'Бесплатно')), def));
@@ -553,7 +615,7 @@ $('ton-pay').onclick = async () => {
 async function buyTon(it, btn) {
   btn.disabled = true;
   try {
-    TON = await api('/api/ton/order', 'POST', { item: it.id });
+    TON = await api('/api/ton/order', 'POST', { item: it.id, amount: it.amount });
     $('ton-title').textContent = TON.title; $('ton-amount').textContent = `${TON.amount} TON`;
     $('ton-addr').textContent = TON.address; $('ton-comment').textContent = TON.comment;
     tonSheet(true); tcInit(); tcWalletNote();
@@ -578,7 +640,7 @@ async function loadFriends() {
   const box = $('flist'); box.innerHTML = '';
   if (!r.friends.length) box.append(el('div', { class: 'empty' }, 'Пригласите первого друга'));
   r.friends.forEach(f => box.append(el('div', { class: 'cell' }, icon('person', 'var(--label3)'),
-    el('div', { class: 'tx' }, el('b', {}, f.name || 'Игрок')), el('span', { class: 'val' }, `Ур. ${f.level + 1}`))));
+    el('div', { class: 'tx' }, el('b', {}, f.name || 'Игрок')), el('span', { class: 'val' }, `Сервер ${f.level + 1}`))));
 }
 $('invite').onclick = () => tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent('Присоединяйся к TonCry')}`);
 $('copy').onclick = () => navigator.clipboard.writeText(link).then(() => hud('Ссылка скопирована'));

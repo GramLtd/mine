@@ -71,8 +71,11 @@ async def admin_cmd(msg: Message):
 # ---------- Telegram Stars ----------
 @router.pre_checkout_query()
 async def pre_checkout(q: PreCheckoutQuery):
-    item, _, uid = q.invoice_payload.partition(":")
-    ok = item in SHOP and uid == str(q.from_user.id) and q.total_amount == SHOP[item][2]
+    item, uid, *rest = q.invoice_payload.split(":") + [""]
+    if item == "activate":  # цена в звёздах плавает с курсом — сверяем с ценой из счёта
+        ok = uid == str(q.from_user.id) and rest[0].isdigit() and q.total_amount == int(rest[0])
+    else:
+        ok = item in SHOP and uid == str(q.from_user.id) and q.total_amount == SHOP[item][2]
     if ok and item.startswith("skin_") and item in (db.get(q.from_user.id) or {}).get("skins", ""):
         ok = False  # скин уже куплен
     user = db.get(q.from_user.id)
@@ -88,7 +91,7 @@ async def paid(msg: Message):
     item = sp.invoice_payload.partition(":")[0]
     if db.add_payment(sp.telegram_payment_charge_id, msg.from_user.id, item, sp.total_amount):
         game.apply_item(msg.from_user.id, item)
-    await msg.answer(f"⭐ Спасибо! «{SHOP.get(item, ('Покупка',))[0]}» активирован.", reply_markup=kb())
+    await msg.answer(f"⭐ Спасибо! «{SHOP.get(item, ('Запуск майнинга' if item == 'activate' else 'Покупка',))[0]}» активирован.", reply_markup=kb())
 
 
 @router.message(Command("paysupport"))

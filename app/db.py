@@ -76,6 +76,9 @@ def init():
                          ("skin", "TEXT DEFAULT ''"), ("full_notified", "REAL DEFAULT 0")]:
             if col not in cols:
                 c.execute(f"ALTER TABLE users ADD COLUMN {col} {ddl}")
+        if "activated" not in cols:  # платный запуск майнинга; уже играющим — бесплатно
+            c.execute("ALTER TABLE users ADD COLUMN activated INTEGER DEFAULT 0")
+            c.execute("UPDATE users SET activated=1")
 
 
 def get(uid: int):
@@ -105,6 +108,13 @@ def update(uid: int, **fields):
     keys = ", ".join(f"{k}=?" for k in fields)
     with conn() as c:
         c.execute(f"UPDATE users SET {keys} WHERE id=?", (*fields.values(), uid))
+
+
+def spend(uid: int, amount: float) -> bool:
+    """Атомарно списать с баланса, если хватает."""
+    with conn() as c:
+        return c.execute("UPDATE users SET balance=balance-? WHERE id=? AND balance>=?",
+                         (amount, uid, amount)).rowcount == 1
 
 
 def add_balance(uid: int, amount: float):
@@ -321,6 +331,6 @@ def storage_full_users(now, base_hours, limit=200):
     """Игроки, у которых хранилище заполнилось и по этому заходу ещё не было уведомления."""
     with conn() as c:
         return [dict(r) for r in c.execute(
-            "SELECT * FROM users WHERE banned=0 AND full_notified < last_claim "
+            "SELECT * FROM users WHERE banned=0 AND activated=1 AND full_notified < last_claim "
             "AND last_claim + MAX(?, COALESCE(storage_hours,0)) * 3600 <= ? LIMIT ?",
             (base_hours, now, limit))]

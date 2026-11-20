@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from . import db, game, settings, ton
 from .auth import current_user
 from .config import (LEVELS, DAILY_BONUS, CHANNEL_USERNAME, REF_BONUS_COINS, SHOP, STORAGE_ITEMS,
-                     ADMIN_IDS, ADMIN_USERNAMES, WEBAPP_URL)
+                     ADMIN_IDS, ADMIN_USERNAMES, WEBAPP_URL, TOPUP_MIN)
 
 WEB = Path(__file__).resolve().parent.parent / "webapp"
 ADMIN_UI = Path(__file__).resolve().parent / "admin_ui"  # не публикуется как статика
@@ -176,24 +176,35 @@ async def withdraw(body: WithdrawIn, tg=Depends(current_user)):
 # ---------- Telegram Stars ----------
 class InvoiceIn(BaseModel):
     item: str
+    amount: float | None = None  # только для пополнения
 
 
 @api.post("/api/stars/invoice")
 async def stars_invoice(body: InvoiceIn, tg=Depends(current_user)):
     user = load(tg)
-    if body.item not in SHOP:
+    if body.item == "activate":
+        if user.get("activated"):
+            raise HTTPException(400, "Майнинг уже запущен")
+        title, desc, price = "Запуск майнинга", "Сервер начинает майнить навсегда", game.item_stars_price("activate")
+        payload = f"activate:{user['id']}:{price}"
+    elif body.item in SHOP:
+        title, desc, price, _cat = SHOP[body.item]
+        _check_buyable(user, body.item)
+        payload = f"{body.item}:{user['id']}"
+    else:
         raise HTTPException(404, "Нет такого товара")
-    title, desc, price, _cat = SHOP[body.item]
-    _check_buyable(user, body.item)
     link = await bot.create_invoice_link(
-        title=title, description=desc, payload=f"{body.item}:{user['id']}",
+        title=title, description=desc, payload=payload,
         currency="XTR", prices=[LabeledPrice(label=title, amount=price)], provider_token="")
     return {"link": link}
 
 
 # ---------- оплата в TON ----------
 async def ton_paid(order):
-    game.apply_item(order["user_id"], order["item"])
+    if order["item"] == "topup":
+        db.add_balance(order["user_id"], order["nano"] / ton.NANO)
+    else:
+        game.apply_item(order["user_id"], order["item"])
     title = _item_title(order["item"])
     amount = order["nano"] / ton.NANO
     try:
@@ -215,7 +226,9 @@ def _check_buyable(user, item):
 
 
 def _item_title(item):
-    return f"Уровень {int(item[3:]) + 1}" if item.startswith("up:") else SHOP[item][0]
+    if item.startswith("up:"):
+        return f"Сервер {game.server_info(int(item[3:]))['spec']}"
+    return {"topup": "Пополнение баланса", "activate": "Запуск майнинга"}.get(item) or SHOP[item][0]
 
 
 @api.post("/api/ton/order")
@@ -229,9 +242,17 @@ def ton_order(body: InvoiceIn, tg=Depends(current_user)):
             raise HTTPException(400, "Максимальный уровень")
         item = f"up:{user['level'] + 1}"
         amount = LEVELS[user["level"] + 1][1]  # курс монеты к TON 1:1
+    elif item == "topup":
+        amount = round(body.amount or 0, 4)
+        if amount < TOPUP_MIN or amount > 100000:
+            raise HTTPException(400, f"Минимальное пополнение — {TOPUP_MIN:g} TON")
+    elif item == "activate":
+        if user.get("activated"):
+            raise HTTPException(400, "Майнинг уже запущен")
+        amount = settings.activation_ton()
     elif item in SHOP:
         _check_buyable(user, item)
-        amount = settings.stars_to_ton(SHOP[item][2])
+        amount = game.item_ton_price(item)
     else:
         raise HTTPException(404, "Нет такого товара")
     nano = round(amount * ton.NANO)
@@ -241,6 +262,24 @@ def ton_order(body: InvoiceIn, tg=Depends(current_user)):
     return {"id": oid, "address": wallet, "amount": nano / ton.NANO, "nano": nano, "comment": comment,
             "title": _item_title(item), "payload": ton.comment_payload(comment),
             "bot": getattr(api.state, "bot_username", ""), **ton.transfer_links(wallet, nano, comment)}
+
+
+@api.post("/api/buy")
+def buy_balance(body: InvoiceIn, tg=Depends(current_user)):
+    """Покупка товара или запуска майнинга с баланса (1 монета = 1 TON)."""
+    user = load(tg)
+    if body.item == "activate":
+        if user.get("activated"):
+            raise HTTPException(400, "Майнинг уже запущен")
+    elif body.item in SHOP:
+        _check_buyable(user, body.item)
+    else:
+        raise HTTPException(404, "Нет такого товара")
+    price = game.item_ton_price(body.item)
+    if not db.spend(user["id"], price):
+        raise HTTPException(400, "Недостаточно средств на балансе")
+    game.apply_item(user["id"], body.item)
+    return game.state(load(tg), is_admin(tg))
 
 
 @api.post("/api/ton/order/{oid}/check")
@@ -410,6 +449,7 @@ class SettingsIn(BaseModel):
     support_username: str | None = None
     ton_wallet: str | None = None
     star_rub: float | None = None
+    activation_ton: float | None = None
     ton_rub: float | None = None
 
 
@@ -442,6 +482,8 @@ def a_set_settings(body: SettingsIn, _=Depends(admin)):
         if body.star_rub <= 0:
             raise HTTPException(400, "Цена звезды должна быть больше 0")
         db.set_setting("star_rub", body.star_rub)
+    if body.activation_ton is not None:
+        db.set_setting("activation_ton", max(0.01, body.activation_ton))
     if body.ton_rub is not None:
         if body.ton_rub <= 0:
             raise HTTPException(400, "Курс TON должен быть больше 0")
