@@ -22,6 +22,11 @@ def support() -> str:
     return db.get_setting("support_username", "")
 
 
+def ref_bonus() -> float:
+    from .config import REF_BONUS_COINS
+    return float(db.get_setting("ref_bonus", REF_BONUS_COINS))
+
+
 def ton_wallet() -> str:
     return db.get_setting("ton_wallet", TON_WALLET) or ""
 
@@ -75,6 +80,7 @@ def all_settings() -> dict:
         "support_username": support(),
         "ton_wallet": ton_wallet(),
         "star_rub": star_rub(),
+        "ref_bonus": ref_bonus(),
         "nofee_price": float(db.get_setting("nofee_price", 100)),
         "ton_rub": ton_rub_fallback(),
         "ton_rub_live": ton_rub(),

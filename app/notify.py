@@ -34,6 +34,17 @@ async def storage_watcher(bot, interval: int = 60):
                 except Exception as e:
                     log.warning("notify %s failed: %s", u["id"], e)
                 await asyncio.sleep(0.05)
+            for r in db.ref_unpaid():
+                if not db.ref_mark_paid(r["id"]):
+                    continue
+                bonus = settings.ref_bonus()
+                db.add_balance(r["referrer"], bonus)
+                try:
+                    await bot.send_message(r["referrer"], f"🎉 Ваш друг {r['name'] or ''} арендовал сервер — "
+                                           f"<b>+{bonus:g} {settings.coin()}</b> на баланс!", reply_markup=kb())
+                except Exception:
+                    pass
+                await asyncio.sleep(0.05)
             for sv in db.servers_expired_unnotified(time.time()):
                 db.server_update(sv["id"], expiry_notified=1)
                 spec = game.tier_info(sv["tier"])["spec"]

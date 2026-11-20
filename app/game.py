@@ -4,8 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 from . import db, settings
 from .config import (SERVERS, RENT_DAYS, FIRST_DISCOUNT, UPGRADE_MARKUP, MINING_FEE, NOFEE_PRICE,
-                     STOCK_RESET_HOUR_MSK, COIN_PER_GH_PER_SEC, STORAGE_HOURS, REF_HASH_BONUS,
-                     REF_HASH_BONUS_MAX, SHOP, STORAGE_ITEMS)
+                     STOCK_RESET_HOUR_MSK, COIN_PER_GH_PER_SEC, STORAGE_HOURS, SHOP, STORAGE_ITEMS)
 
 MSK = timezone(timedelta(hours=3))
 
@@ -57,7 +56,7 @@ def upgrade_price(t) -> float:
 
 # ---------- доход ----------
 def ref_mult(user) -> float:
-    return 1 + min(db.friend_count(user["id"]) * REF_HASH_BONUS, REF_HASH_BONUS_MAX)
+    return 1.0  # бонус к хешрейту за друзей убран; за друга платится ref_bonus
 
 
 def fee(user) -> float:

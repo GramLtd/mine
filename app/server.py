@@ -12,7 +12,7 @@ from pydantic import BaseModel
 
 from . import db, game, settings, ton
 from .auth import current_user
-from .config import (SERVERS, RENT_DAYS, DAILY_BONUS, CHANNEL_USERNAME, REF_BONUS_COINS, SHOP, STORAGE_ITEMS,
+from .config import (SERVERS, RENT_DAYS, DAILY_BONUS, CHANNEL_USERNAME, SHOP, STORAGE_ITEMS,
                      ADMIN_IDS, ADMIN_USERNAMES, WEBAPP_URL, TOPUP_MIN)
 
 WEB = Path(__file__).resolve().parent.parent / "webapp"
@@ -57,7 +57,7 @@ def claim(tg=Depends(current_user)):
 def friends(tg=Depends(current_user)):
     user = load(tg)
     uname = getattr(api.state, "bot_username", "your_bot")
-    return {"friends": db.friends(user["id"]), "bonus_per_friend": REF_BONUS_COINS,
+    return {"friends": db.friends(user["id"]), "bonus_per_friend": settings.ref_bonus(),
             "link": f"https://t.me/{uname}?start=ref{user['id']}"}
 
 
@@ -419,6 +419,7 @@ class SettingsIn(BaseModel):
     ton_wallet: str | None = None
     star_rub: float | None = None
     nofee_price: float | None = None
+    ref_bonus: float | None = None
     stock_daily: list[int] | None = None
     ton_rub: float | None = None
 
@@ -452,6 +453,8 @@ def a_set_settings(body: SettingsIn, _=Depends(admin)):
         if body.star_rub <= 0:
             raise HTTPException(400, "Цена звезды должна быть больше 0")
         db.set_setting("star_rub", body.star_rub)
+    if body.ref_bonus is not None:
+        db.set_setting("ref_bonus", max(0.0, body.ref_bonus))
     if body.nofee_price is not None:
         db.set_setting("nofee_price", max(0.01, body.nofee_price))
     if body.stock_daily is not None:

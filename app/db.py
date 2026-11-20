@@ -91,6 +91,9 @@ def init():
         for col, ddl in [("no_fee", "INTEGER DEFAULT 0"), ("bought_server", "INTEGER DEFAULT 0"), ("tutorial_done", "INTEGER DEFAULT 0")]:
             if col not in cols:
                 c.execute(f"ALTER TABLE users ADD COLUMN {col} {ddl}")
+        if "ref_paid" not in cols:  # бонус за друга — когда он арендует первый сервер; старым не платим повторно
+            c.execute("ALTER TABLE users ADD COLUMN ref_paid INTEGER DEFAULT 0")
+            c.execute("UPDATE users SET ref_paid=1 WHERE bought_server=1")
         # переход с уровней на серверы: игрокам с запущенным майнингом — сервер их уровня на 30 дней
         if not c.execute("SELECT value FROM settings WHERE key='servers_migrated'").fetchone():
             now = time.time()
@@ -411,3 +414,16 @@ def stock_set(tier, period, left):
     with conn() as c:
         c.execute("INSERT INTO stock VALUES(?,?,?) ON CONFLICT(tier) DO UPDATE SET left=excluded.left, period=excluded.period",
                   (tier, max(0, left), period))
+
+
+def ref_unpaid(limit=200):
+    """Приглашённые, которые арендовали первый сервер, а бонус пригласившему ещё не выплачен."""
+    with conn() as c:
+        return [dict(r) for r in c.execute(
+            "SELECT id, name, referrer FROM users WHERE referrer IS NOT NULL AND bought_server=1 AND ref_paid=0 LIMIT ?",
+            (limit,))]
+
+
+def ref_mark_paid(uid) -> bool:
+    with conn() as c:
+        return c.execute("UPDATE users SET ref_paid=1 WHERE id=? AND ref_paid=0", (uid,)).rowcount == 1

@@ -4,7 +4,7 @@ from aiogram.types import (Message, InlineKeyboardMarkup, InlineKeyboardButton, 
                            PreCheckoutQuery)
 
 from . import db, game, settings
-from .config import WEBAPP_URL, REF_BONUS_COINS, SHOP, ADMIN_IDS, ADMIN_USERNAMES
+from .config import WEBAPP_URL, SHOP, ADMIN_IDS, ADMIN_USERNAMES
 
 router = Router()
 
@@ -30,11 +30,11 @@ async def start(msg: Message, command: CommandObject):
     user, created = db.get_or_create(msg.from_user.id, msg.from_user.first_name, ref,
                                      username=msg.from_user.username)
     if created and user["referrer"]:
-        db.add_balance(user["referrer"], REF_BONUS_COINS)
         try:
             await msg.bot.send_message(
                 user["referrer"],
-                f"🎉 {msg.from_user.first_name} присоединился по вашей ссылке! +{REF_BONUS_COINS} {settings.coin()}")
+                f"👋 {msg.from_user.first_name} присоединился по вашей ссылке! Вы получите "
+                f"+{settings.ref_bonus():g} {settings.coin()}, когда он арендует первый сервер.")
         except Exception:
             pass
     if user.get("banned") and not is_admin(msg.from_user):

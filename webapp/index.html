@@ -319,10 +319,8 @@ textarea{width:100%;min-height:140px;border:0;outline:none;background:var(--bg2)
 <section id="friends" class="page">
   <h1 class="large-title">Друзья</h1>
   <div class="group">
-    <div class="cell"><div class="ic" style="background:var(--green)"><svg><use href="#i-bolt"/></svg></div>
-      <div class="tx"><b>+10% к хешрейту</b><small>за каждого друга, до +100%</small></div></div>
     <div class="cell"><div class="ic" style="background:var(--orange)"><svg><use href="#i-gift"/></svg></div>
-      <div class="tx"><b id="refbonus">Бонус за приглашение</b><small>начисляется сразу</small></div></div>
+      <div class="tx"><b id="refbonus">Бонус за приглашение</b><small>когда друг арендует первый сервер</small></div></div>
   </div>
   <div class="actions" style="margin-top:14px">
     <button class="btn primary" id="invite"><svg><use href="#i-paper"/></svg>Пригласить</button>
@@ -804,7 +802,7 @@ async function tonCheck(silent) {
 let link = '';
 async function loadFriends() {
   const r = await api('/api/friends'); link = r.link;
-  $('refbonus').textContent = `+${r.bonus_per_friend} ${S?.coin || ''} за приглашение`;
+  $('refbonus').textContent = `+${r.bonus_per_friend} ${S?.coin || ''} за каждого друга`;
   $('fcount').textContent = `Ваши друзья · ${r.friends.length}`;
   const box = $('flist'); box.innerHTML = '';
   if (!r.friends.length) box.append(el('div', { class: 'empty' }, 'Пригласите первого друга'));

@@ -48,6 +48,7 @@
     <div class="caption">Оплата в TON</div>
     <div class="group">
       <label class="cell field noicon"><span>Кошелёк</span><input id="s-tonw" placeholder="UQ…" autocapitalize="off" spellcheck="false"></label>
+      <label class="cell field noicon"><span>Бонус за друга, TON</span><input id="s-ref" type="number" step="any" inputmode="decimal"></label>
       <label class="cell field noicon"><span>Отключить комиссию, TON</span><input id="s-nofee" type="number" step="any" inputmode="decimal"></label>
       <label class="cell field noicon"><span>1 звезда, ₽</span><input id="s-starrub" type="number" step="any" inputmode="decimal"></label>
       <label class="cell field noicon"><span>Запасной курс TON, ₽</span><input id="s-tonrub" type="number" step="any" inputmode="decimal"></label>
@@ -254,11 +255,11 @@ async function loadSettings() {
   loadMs();
   const s = await api('/api/admin/settings');
   $('s-coin').value = s.coin_name; $('s-min').value = s.min_withdraw; $('s-wden').checked = s.withdraw_enabled; $('s-welcome').value = s.welcome_text; $('s-support').value = s.support_username ? '@' + s.support_username : '';
-  $('s-tonw').value = s.ton_wallet || ''; $('s-starrub').value = s.star_rub; $('s-nofee').value = s.nofee_price; $('s-stock').value = (S?.servers || []).map(x => x.daily ?? '').join(', '); $('s-tonrub').value = s.ton_rub; $('s-ton-note').textContent = `Цены в TON = звёзды × цена звезды / курс TON. Сейчас 1 TON ≈ ${s.ton_rub_live.toFixed(2)} ₽ (tonapi.io; запасной курс — если сервис недоступен). Пустой кошелёк — оплата в TON отключена.`;
+  $('s-tonw').value = s.ton_wallet || ''; $('s-starrub').value = s.star_rub; $('s-nofee').value = s.nofee_price; $('s-ref').value = s.ref_bonus; $('s-stock').value = (S?.servers || []).map(x => x.daily ?? '').join(', '); $('s-tonrub').value = s.ton_rub; $('s-ton-note').textContent = `Цены в TON = звёзды × цена звезды / курс TON. Сейчас 1 TON ≈ ${s.ton_rub_live.toFixed(2)} ₽ (tonapi.io; запасной курс — если сервис недоступен). Пустой кошелёк — оплата в TON отключена.`;
 }
 $('s-save').onclick = async () => {
   try {
-    await api('/api/admin/settings', 'POST', { coin_name: $('s-coin').value, min_withdraw: +$('s-min').value, withdraw_enabled: $('s-wden').checked, welcome_text: $('s-welcome').value, support_username: $('s-support').value, ton_wallet: $('s-tonw').value, star_rub: +$('s-starrub').value, nofee_price: +$('s-nofee').value, ...($('s-stock').value.trim() ? { stock_daily: $('s-stock').value.split(',').map(x => +x.trim() || 0) } : {}), ton_rub: +$('s-tonrub').value }); loadSettings();
+    await api('/api/admin/settings', 'POST', { coin_name: $('s-coin').value, min_withdraw: +$('s-min').value, withdraw_enabled: $('s-wden').checked, welcome_text: $('s-welcome').value, support_username: $('s-support').value, ton_wallet: $('s-tonw').value, star_rub: +$('s-starrub').value, nofee_price: +$('s-nofee').value, ref_bonus: +$('s-ref').value, ...($('s-stock').value.trim() ? { stock_daily: $('s-stock').value.split(',').map(x => +x.trim() || 0) } : {}), ton_rub: +$('s-tonrub').value }); loadSettings();
     hud('Сохранено'); render(await api('/api/state'));
   } catch (e) { hud(e.message, false); }
 };
