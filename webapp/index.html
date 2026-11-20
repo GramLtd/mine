@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>TonCry</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://unpkg.com/@tonconnect/ui@2.0.9/dist/tonconnect-ui.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -303,8 +304,10 @@ textarea{width:100%;min-height:140px;border:0;outline:none;background:var(--bg2)
     <button class="cell noicon" data-copy="address"><div class="tx"><b>Адрес</b><small id="ton-addr" style="word-break:break-all;font-family:ui-monospace,Menlo,monospace"></small></div></button>
     <button class="cell noicon" data-copy="comment"><div class="tx"><b>Комментарий</b><small id="ton-comment" style="font-family:ui-monospace,Menlo,monospace"></small></div></button>
   </div>
-  <p class="footnote">Обязательно укажите комментарий — по нему мы найдём платёж. Нажмите на строку, чтобы скопировать. Буст включится автоматически в течение минуты после поступления.</p>
-  <button class="btn primary" id="ton-open" style="width:100%;margin-top:16px">Открыть кошелёк</button>
+  <p class="footnote">Оплатите через TON Connect — сумма и комментарий подставятся сами. Или переведите вручную: обязательно укажите комментарий — по нему мы найдём платёж. Нажмите на строку, чтобы скопировать. Буст включится автоматически в течение минуты после поступления.</p>
+  <button class="btn primary" id="ton-pay" style="width:100%;margin-top:16px">Оплатить через кошелёк</button>
+  <button class="btn" id="ton-open" style="width:100%;margin-top:10px">Открыть по ссылке</button>
+  <p class="footnote" id="ton-wallet" style="text-align:center"></p>
   <button class="btn" id="ton-check" style="width:100%;margin-top:10px">Я оплатил — проверить</button>
 </div>
 
@@ -514,13 +517,46 @@ document.querySelectorAll('#ton-sheet [data-copy]').forEach(c => c.onclick = asy
 });
 $('ton-open').onclick = () => { if (TON) tg.openLink ? tg.openLink(TON.tonkeeper) : location.href = TON.ton; };
 $('ton-check').onclick = () => tonCheck(false);
+
+/* TON Connect */
+let TC = null, tcPending = false;
+function tcInit() {
+  if (TC || !window.TON_CONNECT_UI) return TC;
+  TC = new TON_CONNECT_UI.TonConnectUI({ manifestUrl: location.origin + '/tonconnect-manifest.json' });
+  TC.onStatusChange(w => { tcWalletNote(); if (w && tcPending) { tcPending = false; tcSend(); } });
+  return TC;
+}
+function tcWalletNote() {
+  const box = $('ton-wallet'); box.innerHTML = '';
+  if (!TC?.connected) return;
+  const a = TC.account.address, short = TON_CONNECT_UI.toUserFriendlyAddress ? TON_CONNECT_UI.toUserFriendlyAddress(a) : a;
+  const off = el('a', { href: '#', style: 'color:var(--blue)' }, 'отключить');
+  off.onclick = e => { e.preventDefault(); TC.disconnect(); };
+  box.append(`Кошелёк ${short.slice(0, 4)}…${short.slice(-4)} · `, off);
+}
+async function tcSend() {
+  if (!TON) return;
+  const b = $('ton-pay'); b.disabled = true;
+  try {
+    await TC.sendTransaction({ validUntil: Math.floor(Date.now() / 1000) + 600,
+      messages: [{ address: TON.address, amount: String(TON.nano), payload: TON.payload }] });
+    hud('Платёж отправлен, ждём подтверждения…');
+    setTimeout(() => tonCheck(true), 5000);
+  } catch (e) { hud('Оплата отменена', false); } finally { b.disabled = false; }
+}
+$('ton-pay').onclick = async () => {
+  if (!tcInit()) return hud('TON Connect не загрузился, используйте ссылку', false);
+  if (TON?.bot) TC.uiOptions = { twaReturnUrl: `https://t.me/${TON.bot}` };
+  if (TC.connected) return tcSend();
+  tcPending = true; TC.openModal();
+};
 async function buyTon(it, btn) {
   btn.disabled = true;
   try {
     TON = await api('/api/ton/order', 'POST', { item: it.id });
     $('ton-title').textContent = TON.title; $('ton-amount').textContent = `${TON.amount} TON`;
     $('ton-addr').textContent = TON.address; $('ton-comment').textContent = TON.comment;
-    tonSheet(true);
+    tonSheet(true); tcInit(); tcWalletNote();
   } catch (e) { hud(e.message, false); } finally { btn.disabled = false; }
 }
 async function tonCheck(silent) {

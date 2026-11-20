@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from . import db, game, settings, ton
 from .auth import current_user
 from .config import (LEVELS, DAILY_BONUS, CHANNEL_USERNAME, REF_BONUS_COINS, SHOP, STORAGE_ITEMS,
-                     ADMIN_IDS, ADMIN_USERNAMES)
+                     ADMIN_IDS, ADMIN_USERNAMES, WEBAPP_URL)
 
 WEB = Path(__file__).resolve().parent.parent / "webapp"
 ADMIN_UI = Path(__file__).resolve().parent / "admin_ui"  # не публикуется как статика
@@ -239,7 +239,8 @@ def ton_order(body: InvoiceIn, tg=Depends(current_user)):
     oid = db.ton_order_create(user["id"], item, nano, comment)
     wallet = settings.ton_wallet()
     return {"id": oid, "address": wallet, "amount": nano / ton.NANO, "nano": nano, "comment": comment,
-            "title": _item_title(item), **ton.transfer_links(wallet, nano, comment)}
+            "title": _item_title(item), "payload": ton.comment_payload(comment),
+            "bot": getattr(api.state, "bot_username", ""), **ton.transfer_links(wallet, nano, comment)}
 
 
 @api.post("/api/ton/order/{oid}/check")
@@ -484,6 +485,12 @@ def a_ui(_=Depends(admin)):
 
 
 # ---------- статика ----------
+@api.get("/tonconnect-manifest.json")
+def tonconnect_manifest():
+    base = WEBAPP_URL.rstrip("/")
+    return {"url": base, "name": settings.coin() or "TonCry", "iconUrl": f"{base}/static/icon.png"}
+
+
 @api.get("/")
 def index():
     return FileResponse(WEB / "index.html")

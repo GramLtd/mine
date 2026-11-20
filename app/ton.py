@@ -42,6 +42,15 @@ log = logging.getLogger("toncry.ton")
 NANO = 1_000_000_000
 
 
+def comment_payload(comment: str) -> str:
+    """BOC (base64) одной ячейки с текстовым комментарием: op=0 + UTF-8 текст. Для TON Connect."""
+    data = b"\x00\x00\x00\x00" + comment.encode()
+    assert len(data) <= 127
+    cell = bytes([0, len(data) * 2]) + data  # d1: 0 ссылок; d2: байт-выровненные данные
+    # заголовок: magic, флаги+size=1, off_bytes=1, cells=1, roots=1, absent=0, tot_size, root_idx=0
+    return base64.b64encode(b"\xb5\xee\x9c\x72" + bytes([1, 1, 1, 1, 0, len(cell), 0]) + cell).decode()
+
+
 def transfer_links(address: str, nano: int, comment: str) -> dict:
     q = urllib.parse.urlencode({"amount": nano, "text": comment})
     return {"ton": f"ton://transfer/{address}?{q}",
