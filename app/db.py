@@ -73,7 +73,7 @@ def init():
         for col, ddl in [("username", "TEXT"), ("boost_mult", "REAL DEFAULT 1"),
                          ("boost_until", "REAL DEFAULT 0"), ("banned", "INTEGER DEFAULT 0"),
                          ("storage_hours", "REAL DEFAULT 0"), ("skins", "TEXT DEFAULT ''"),
-                         ("skin", "TEXT DEFAULT ''")]:
+                         ("skin", "TEXT DEFAULT ''"), ("full_notified", "REAL DEFAULT 0")]:
             if col not in cols:
                 c.execute(f"ALTER TABLE users ADD COLUMN {col} {ddl}")
 
@@ -315,3 +315,12 @@ def ton_orders(limit=50):
     with conn() as c:
         return [dict(r) for r in c.execute(
             "SELECT * FROM ton_orders WHERE status='paid' ORDER BY paid DESC LIMIT ?", (limit,))]
+
+
+def storage_full_users(now, base_hours, limit=200):
+    """Игроки, у которых хранилище заполнилось и по этому заходу ещё не было уведомления."""
+    with conn() as c:
+        return [dict(r) for r in c.execute(
+            "SELECT * FROM users WHERE banned=0 AND full_notified < last_claim "
+            "AND last_claim + MAX(?, COALESCE(storage_hours,0)) * 3600 <= ? LIMIT ?",
+            (base_hours, now, limit))]
