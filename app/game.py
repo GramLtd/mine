@@ -1,33 +1,77 @@
 import time
 from . import db
 from .config import (LEVELS, COIN_PER_GH_PER_SEC, STORAGE_HOURS, REF_HASH_BONUS,
-                     REF_HASH_BONUS_MAX, COIN)
+                     REF_HASH_BONUS_MAX, COIN, SHOP)
 
 
-def hashrate(user) -> float:
-    base = LEVELS[user["level"]][0]
-    n = len(db.friends(user["id"]))
-    return base * (1 + min(n * REF_HASH_BONUS, REF_HASH_BONUS_MAX))
+def base_hashrate(user) -> float:
+    n = db.friend_count(user["id"])
+    return LEVELS[user["level"]][0] * (1 + min(n * REF_HASH_BONUS, REF_HASH_BONUS_MAX))
+
+
+def boost(user, now=None) -> float:
+    now = now or time.time()
+    return user.get("boost_mult") or 1 if (user.get("boost_until") or 0) > now else 1
 
 
 def pending(user, now=None) -> float:
+    """Начисление за период [last_claim, now] с учётом буста, который мог закончиться посередине."""
     now = now or time.time()
-    secs = min(now - user["last_claim"], STORAGE_HOURS * 3600)
-    return max(secs, 0) * hashrate(user) * COIN_PER_GH_PER_SEC
+    start = max(user["last_claim"], now - STORAGE_HOURS * 3600)
+    if now <= start:
+        return 0.0
+    secs = now - start
+    boosted = max(0.0, min(now, user.get("boost_until") or 0) - start)
+    mult = user.get("boost_mult") or 1
+    eff = (secs - boosted) + boosted * mult
+    return eff * base_hashrate(user) * COIN_PER_GH_PER_SEC
 
 
-def state(user) -> dict:
+def settle(user, now=None):
+    """Зачислить накопленное в «хранилище» и сбросить таймер (перед изменением скорости)."""
+    now = now or time.time()
+    acc = pending(user, now)
+    db.update(user["id"], balance=user["balance"] + acc, last_claim=now)
+    return acc
+
+
+def apply_item(uid: int, item: str):
+    user = db.get(uid)
+    now = time.time()
+    if item in ("boost2", "boost3"):
+        mult = 2 if item == "boost2" else 3
+        # копим монеты, но не забираем из хранилища: переносим по старой скорости
+        acc = pending(user, now)
+        cur_until = user["boost_until"] if user["boost_until"] > now and user["boost_mult"] == mult else now
+        db.update(uid, balance=user["balance"] + acc, last_claim=now,
+                  boost_mult=mult, boost_until=cur_until + 86400)
+    elif item == "level":
+        if user["level"] + 1 < len(LEVELS):
+            settle(user, now)
+            db.update(uid, level=user["level"] + 1)
+        else:
+            db.add_balance(uid, 1.0)  # компенсация на макс. уровне
+    elif item == "coins":
+        db.add_balance(uid, 1.0)
+
+
+def state(user, is_admin=False) -> dict:
     lvl = user["level"]
     nxt = LEVELS[lvl + 1] if lvl + 1 < len(LEVELS) else None
+    now = time.time()
+    b = boost(user, now)
+    hr = base_hashrate(user) * b
     return {
         "coin": COIN,
         "balance": user["balance"],
-        "pending": pending(user),
-        "hashrate": hashrate(user),
-        "rate_per_sec": hashrate(user) * COIN_PER_GH_PER_SEC,
+        "pending": pending(user, now),
+        "hashrate": hr,
+        "rate_per_sec": hr * COIN_PER_GH_PER_SEC,
         "storage_hours": STORAGE_HOURS,
-        "server_time": time.time(),
-        "last_claim": user["last_claim"],
         "level": lvl + 1,
+        "max_level": len(LEVELS),
+        "boost": {"mult": b, "until": user["boost_until"]} if b > 1 else None,
         "next_level": {"hashrate": nxt[0], "price": nxt[1]} if nxt else None,
+        "shop": [{"id": k, "title": t, "desc": d, "stars": p} for k, (t, d, p) in SHOP.items()],
+        "is_admin": is_admin,
     }
