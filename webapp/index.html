@@ -276,7 +276,7 @@ textarea{width:100%;min-height:140px;border:0;outline:none;background:var(--bg2)
     </div>
   </div>
 
-  <div class="mined num" id="mined">0.0000000000<span id="minedcoin"></span></div>
+  <div class="mined num" id="mined"><b id="minedv" style="font-weight:inherit">0.0000000000</b><span id="minedcoin"></span></div>
   <div class="sub" id="rate">— GH/s</div>
   <div class="hint" id="hint"></div>
 
@@ -526,7 +526,7 @@ const RING = 584.3;
 function render(s) {
   S = s; base = s.pending; t0 = performance.now();
   $('bal').innerHTML = ''; $('bal').append(fmt(s.balance), el('span', {}, s.coin));
-  $('minedcoin').textContent = ' ' + s.coin;
+  $('minedcoin').textContent = ' ' + s.coin; $('mined').style.fontSize = '';
   const n = s.active_count;
   $('lvlchip').textContent = s.boost ? `×${s.boost.mult} буст` : n ? `${n} ${plural(n, 'сервер', 'сервера', 'серверов')}` : 'Нет серверов';
   $('lvlchip').className = 'chip' + (s.boost ? ' boost' : '');
@@ -552,7 +552,7 @@ function updHint() {
   const h = $('hint'), max = S.rate_per_sec * S.storage_hours * 3600;
   if (!S.active_count) { h.className = 'hint'; h.textContent = S.pending > 0 ? 'Заберите остаток намайненного' : 'Арендуйте сервер, чтобы начать'; return; }
   const v = Math.min(base + S.rate_per_sec * (performance.now() - t0) / 1000, max), left = (max - v) / S.rate_per_sec;
-  const daily = `≈ ${fmt(S.rate_per_sec * 86400, 3)} в день`;
+  const daily = `≈ ${fmt(S.rate_per_sec * 86400, 3)} ${S.coin} в день`;
   if (left <= 1) { h.className = 'hint warn'; h.textContent = 'Хранилище заполнено — нажмите «Забрать», чтобы майнинг продолжился'; }
   else { h.className = 'hint'; const hh = Math.floor(left / 3600), mm = Math.floor(left % 3600 / 60); h.textContent = `${daily} · заполнится через ${hh ? hh + ' ч ' : ''}${mm} мин`; }
 }
@@ -561,7 +561,7 @@ function tick() {
   if (S) {
     const max = S.rate_per_sec * S.storage_hours * 3600;
     const v = Math.min(base + S.rate_per_sec * (performance.now() - t0) / 1000, max);
-    const m = $('mined'); m.firstChild ? m.firstChild.nodeValue = fmt(v, 10) : m.prepend(fmt(v, 10));
+    $('minedv').textContent = fmt(v, 10);
     $('ring').style.strokeDashoffset = max ? RING * (1 - v / max) : RING;
   }
   requestAnimationFrame(tick);
@@ -953,7 +953,7 @@ async function loadAdminUI() {
   } catch { adminLoaded = false; }
 }
 
-api('/api/state').then(render).catch(e => { $('mined').textContent = e.message === 'Ошибка сети' ? 'Откройте в Telegram' : e.message; $('mined').style.fontSize = '20px'; });
+api('/api/state').then(render).catch(e => { $('minedv').textContent = e.message === 'Ошибка сети' ? 'Откройте в Telegram' : e.message; $('mined').style.fontSize = '20px'; });
 setInterval(() => api('/api/state').then(render).catch(() => {}), 30000);
 tick();
 </script>
