@@ -14,14 +14,14 @@
   --bg:#F2F2F7; --bg2:#FFFFFF; --fill:rgba(120,120,128,.12); --sep:rgba(60,60,67,.18);
   --label:#000; --label2:rgba(60,60,67,.6); --label3:rgba(60,60,67,.3);
   --blue:#007AFF; --green:#34C759; --orange:#FF9500; --red:#FF3B30; --indigo:#5856D6; --pink:#FF2D55; --yellow:#FFCC00;
-  --glass:rgba(249,249,249,.78); --shadow:0 1px 2px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.06);
+  --glass:rgba(255,255,255,.42); --glass-rim:rgba(255,255,255,.75); --glass-in:rgba(255,255,255,.55); --glass-pill:rgba(0,0,0,.06); --shadow:0 1px 2px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.06);
   --r:22px;
 }
 :root[data-theme="dark"]{
   --bg:#000; --bg2:#1C1C1E; --fill:rgba(118,118,128,.24); --sep:rgba(84,84,88,.6);
   --label:#fff; --label2:rgba(235,235,245,.6); --label3:rgba(235,235,245,.3);
   --blue:#0A84FF; --green:#30D158; --orange:#FF9F0A; --red:#FF453A; --indigo:#5E5CE6; --pink:#FF375F; --yellow:#FFD60A;
-  --glass:rgba(22,22,24,.72); --shadow:none;
+  --glass:rgba(40,40,44,.38); --glass-rim:rgba(255,255,255,.16); --glass-in:rgba(255,255,255,.07); --glass-pill:rgba(255,255,255,.12); --shadow:none;
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html,body{background:var(--bg);color:var(--label)}
@@ -190,14 +190,27 @@ textarea{width:100%;min-height:140px;border:0;outline:none;background:var(--bg2)
 .sheet-head button{color:var(--blue);font-size:17px}
 
 /* ---------- tab bar ---------- */
-.tabbar{position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));height:64px;z-index:10;
-  display:flex;padding:6px;border-radius:32px;background:var(--glass);
-  -webkit-backdrop-filter:saturate(180%) blur(24px);backdrop-filter:saturate(180%) blur(24px);
-  box-shadow:0 0 0 .5px var(--sep),0 10px 30px rgba(0,0,0,.12)}
-.tabbar button{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
-  font-size:10px;font-weight:600;color:var(--label2);border-radius:26px;transition:color .2s,background .25s}
+/* ---------- Liquid Glass таб-бар ---------- */
+.tabbar{position:fixed;left:14px;right:14px;bottom:calc(10px + env(safe-area-inset-bottom));height:64px;z-index:10;
+  display:flex;padding:5px;border-radius:999px;background:var(--glass);isolation:isolate;
+  -webkit-backdrop-filter:blur(14px) saturate(190%) brightness(1.05);backdrop-filter:blur(14px) saturate(190%) brightness(1.05);
+  box-shadow:inset 0 1px 0 var(--glass-rim),inset 0 -1px 0 var(--glass-in),inset 0 0 0 .5px var(--glass-rim),
+    0 10px 34px rgba(0,0,0,.28),0 2px 6px rgba(0,0,0,.12)}
+/* блик по верхней кромке стекла */
+.tabbar::before{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:-1;
+  background:linear-gradient(180deg,var(--glass-in) 0%,transparent 45%,transparent 70%,var(--glass-in) 100%)}
+.tabbar button{position:relative;z-index:1;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  font-size:10px;font-weight:600;color:var(--label);opacity:.82;border-radius:999px;transition:color .25s,opacity .25s,transform .25s cubic-bezier(.3,1.5,.5,1)}
+.tabbar button:active{transform:scale(.92)}
 .tabbar svg{width:24px;height:24px}
-.tabbar button.on{color:var(--blue);background:var(--fill)}
+.tabbar button.on{color:var(--blue);opacity:1}
+/* стеклянная «капля» под активной вкладкой — переезжает с пружинкой */
+.tab-ind{position:absolute;top:5px;bottom:5px;left:0;width:0;border-radius:999px;z-index:0;pointer-events:none;
+  background:var(--glass-pill);
+  box-shadow:inset 0 1px 0 var(--glass-rim),inset 0 -1px 0 var(--glass-in),inset 0 0 0 .5px var(--glass-in),0 2px 10px rgba(0,0,0,.12);
+  transition:transform .5s cubic-bezier(.3,1.35,.45,1),width .5s cubic-bezier(.3,1.35,.45,1);will-change:transform,width}
+.tab-ind.squish{animation:squish .5s cubic-bezier(.3,1.35,.45,1)}
+@keyframes squish{0%{scale:1 1}35%{scale:1.12 .9}100%{scale:1 1}}
 
 /* ---------- HUD toast ---------- */
 .hud{position:fixed;top:calc(14px + env(safe-area-inset-top));left:50%;z-index:30;
@@ -930,7 +943,7 @@ $('help').onclick = () => startTour();
 /* ---------- навигация ---------- */
 function bindTab(b) { b.onclick = () => {
   const p = b.dataset.p;
-  document.querySelectorAll('#tabbar button').forEach(x => x.classList.toggle('on', x === b));
+  document.querySelectorAll('#tabbar button').forEach(x => x.classList.toggle('on', x === b)); moveInd(true);
   document.querySelectorAll('.page').forEach(x => x.classList.toggle('on', x.id === p));
   haptic('selectionChanged'); scrollTo(0, 0);
   if (p === 'friends') loadFriends().catch(e => hud(e.message, false));
@@ -938,6 +951,16 @@ function bindTab(b) { b.onclick = () => {
   if (p === 'admin') loadAdmin();
 }; }
 document.querySelectorAll('#tabbar button').forEach(bindTab);
+const tabInd = el('div', { class: 'tab-ind' }); $('tabbar').prepend(tabInd);
+function moveInd(anim) {
+  const b = document.querySelector('#tabbar button.on'); if (!b) return;
+  if (!anim) tabInd.style.transition = 'none';
+  tabInd.style.width = b.offsetWidth + 'px'; tabInd.style.transform = `translateX(${b.offsetLeft}px)`;
+  if (!anim) { void tabInd.offsetWidth; tabInd.style.transition = ''; }
+  else { tabInd.classList.remove('squish'); void tabInd.offsetWidth; tabInd.classList.add('squish'); }
+}
+addEventListener('resize', () => moveInd(false));
+requestAnimationFrame(() => moveInd(false));
 function go(p) { document.querySelector(`#tabbar [data-p="${p}"]`)?.click(); }
 
 /* ---------- админка: загружается с сервера только для админа ---------- */
@@ -952,7 +975,7 @@ async function loadAdminUI() {
     });
     $('admin-root').append(t.content);
     const tab = el('button', { 'data-p': 'admin' }); tab.innerHTML = '<svg><use href="#i-gear"/></svg>Админ';
-    $('tabbar').append(tab); bindTab(tab);
+    $('tabbar').append(tab); bindTab(tab); moveInd(false);
   } catch { adminLoaded = false; }
 }
 
