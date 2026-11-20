@@ -35,6 +35,11 @@
     <div class="group">
       <label class="cell field noicon"><span>Название</span><input id="s-coin" maxlength="16" placeholder="HASH"></label>
     </div>
+    <div class="caption">Техподдержка</div>
+    <div class="group">
+      <label class="cell field noicon"><span>Username ТП</span><input id="s-support" placeholder="@support" autocapitalize="off"></label>
+    </div>
+    <p class="footnote">Показывается заблокированным игрокам и в /paysupport.</p>
     <div class="caption">Вывод</div>
     <div class="group">
       <div class="cell field noicon"><span>Вывод включён</span><label class="sw"><input type="checkbox" id="s-wden"><span></span></label></div>
@@ -72,10 +77,18 @@
   <div class="caption">Изменить</div>
   <div class="group">
     <label class="cell field noicon"><span>Баланс</span><input id="e-bal" type="number" step="any" inputmode="decimal"></label>
+    <label class="cell field noicon"><span>Начислить +</span><input id="e-add" type="number" step="any" inputmode="decimal" placeholder="0"></label>
     <label class="cell field noicon"><span>Уровень</span><input id="e-lvl" type="number" min="1" inputmode="numeric"></label>
     <div class="cell field noicon"><span>Заблокирован</span><label class="sw"><input type="checkbox" id="e-ban"><span></span></label></div>
   </div>
-  <div class="caption">Выдать буст</div>
+  <div class="caption">Выдать платный товар</div>
+  <div class="group">
+    <label class="cell field noicon"><span>Товар</span>
+      <select id="e-item" style="border:0;background:none;color:var(--blue);font:inherit;font-size:16px;text-align:right;outline:none;max-width:60%"></select></label>
+    <div class="cell field noicon"><span>Уведомить игрока</span><label class="sw"><input type="checkbox" id="e-notify" checked><span></span></label></div>
+  </div>
+  <button class="btn tinted" id="e-grant" style="width:100%;margin-top:10px">Выдать бесплатно</button>
+  <div class="caption">Выдать буст вручную</div>
   <div class="group">
     <label class="cell field noicon"><span>Множитель</span><input id="e-bm" type="number" step="0.5" min="1" placeholder="2"></label>
     <label class="cell field noicon"><span>Часов</span><input id="e-bh" type="number" min="0" placeholder="0 — не менять"></label>
@@ -134,18 +147,25 @@ function openUser(u) {
    ['Буст', u.boost_until > Date.now() / 1000 ? `×${u.boost_mult}, ещё ${ago(2 * Date.now() / 1000 - u.boost_until)}` : 'нет']]
     .forEach(([k, v]) => info.append(el('div', { class: 'cell noicon' }, el('div', { class: 'tx' }, el('b', {}, k)), el('span', { class: 'val num' }, String(v)))));
   $('e-bal').value = +fmt(u.balance, 6); $('e-lvl').value = u.level + 1; $('e-ban').checked = !!u.banned;
-  $('e-bm').value = ''; $('e-bh').value = '';
+  $('e-bm').value = ''; $('e-bh').value = ''; $('e-add').value = '';
+  const sel = $('e-item'); sel.innerHTML = '';
+  (S?.shop || []).forEach(it => sel.append(el('option', { value: it.id }, `${it.title} (${it.stars}★)`)));
   $('scrim').classList.add('on'); $('sheet').classList.add('on');
 }
 function closeSheet() { $('scrim').classList.remove('on'); $('sheet').classList.remove('on'); }
 $('scrim').onclick = $('sh-cancel').onclick = closeSheet;
 $('sh-save').onclick = async () => {
-  const body = { balance: +$('e-bal').value, level: +$('e-lvl').value, banned: $('e-ban').checked };
+  const body = { balance: +$('e-bal').value, level: +$('e-lvl').value, banned: $('e-ban').checked, add_balance: +$('e-add').value || 0 };
   if (+$('e-bh').value > 0) { body.boost_hours = +$('e-bh').value; body.boost_mult = +$('e-bm').value || 2; }
   try { await api('/api/admin/users/' + editing.id, 'POST', body); closeSheet(); hud('Сохранено'); loadUsers(); }
   catch (e) { hud(e.message, false); }
 };
 
+$('e-grant').onclick = async () => {
+  const item = $('e-item').value; if (!item) return;
+  try { editing = await api(`/api/admin/users/${editing.id}/grant`, 'POST', { item, notify: $('e-notify').checked }); hud('Выдано'); openUser(editing); loadUsers(); }
+  catch (e) { hud(e.message, false); }
+};
 async function loadPays() {
   const { payments } = await api('/api/admin/payments'); const box = $('plist'); box.innerHTML = '';
   if (!payments.length) box.append(el('div', { class: 'empty' }, 'Платежей пока нет'));
@@ -219,11 +239,11 @@ $('m-add').onclick = async () => {
 async function loadSettings() {
   loadMs();
   const s = await api('/api/admin/settings');
-  $('s-coin').value = s.coin_name; $('s-min').value = s.min_withdraw; $('s-wden').checked = s.withdraw_enabled; $('s-welcome').value = s.welcome_text;
+  $('s-coin').value = s.coin_name; $('s-min').value = s.min_withdraw; $('s-wden').checked = s.withdraw_enabled; $('s-welcome').value = s.welcome_text; $('s-support').value = s.support_username ? '@' + s.support_username : '';
 }
 $('s-save').onclick = async () => {
   try {
-    await api('/api/admin/settings', 'POST', { coin_name: $('s-coin').value, min_withdraw: +$('s-min').value, withdraw_enabled: $('s-wden').checked, welcome_text: $('s-welcome').value });
+    await api('/api/admin/settings', 'POST', { coin_name: $('s-coin').value, min_withdraw: +$('s-min').value, withdraw_enabled: $('s-wden').checked, welcome_text: $('s-welcome').value, support_username: $('s-support').value });
     hud('Сохранено'); render(await api('/api/state'));
   } catch (e) { hud(e.message, false); }
 };

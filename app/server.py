@@ -29,7 +29,8 @@ def load(tg):
     name = tg.get("first_name", "") or tg.get("username", "")
     user, _ = db.get_or_create(tg["id"], name, username=tg.get("username"))
     if user.get("banned") and not is_admin(tg):
-        raise HTTPException(403, "Аккаунт заблокирован")
+        raise HTTPException(403, {"banned": True, "support": settings.support(),
+                                  "message": "Аккаунт заблокирован"})
     return user
 
 
@@ -212,6 +213,7 @@ class UserEdit(BaseModel):
     banned: bool | None = None
     boost_hours: float | None = None
     boost_mult: float | None = None
+    add_balance: float | None = None
 
 
 @api.post("/api/admin/users/{uid}")
@@ -230,9 +232,33 @@ def a_edit(uid: int, body: UserEdit, _=Depends(admin)):
     if body.boost_hours is not None:
         f["boost_until"] = time.time() + body.boost_hours * 3600
         f["boost_mult"] = body.boost_mult or 2
+    if body.add_balance:
+        f["balance"] = max(0.0, f.get("balance", db.get(uid)["balance"]) + body.add_balance)
     if f:
         db.update(uid, **f)
     return db.get(uid)
+
+
+class GrantIn(BaseModel):
+    item: str
+    notify: bool = True
+
+
+@api.post("/api/admin/users/{uid}/grant")
+async def a_grant(uid: int, body: GrantIn, _=Depends(admin)):
+    if not db.get(uid):
+        raise HTTPException(404, "Пользователь не найден")
+    if body.item not in SHOP:
+        raise HTTPException(400, "Нет такого товара")
+    game.apply_item(uid, body.item)
+    if body.notify:
+        try:
+            await bot.send_message(uid, f"🎁 Вам выдано: «{SHOP[body.item][0]}»")
+        except Exception:
+            pass
+    u = db.get(uid)
+    u["friends"] = db.friend_count(uid)
+    return u
 
 
 class Broadcast(BaseModel):
@@ -316,6 +342,7 @@ class SettingsIn(BaseModel):
     welcome_text: str | None = None
     min_withdraw: float | None = None
     withdraw_enabled: bool | None = None
+    support_username: str | None = None
 
 
 @api.post("/api/admin/settings")
@@ -333,6 +360,11 @@ def a_set_settings(body: SettingsIn, _=Depends(admin)):
         db.set_setting("min_withdraw", max(0.0001, body.min_withdraw))
     if body.withdraw_enabled is not None:
         db.set_setting("withdraw_enabled", "1" if body.withdraw_enabled else "0")
+    if body.support_username is not None:
+        u = body.support_username.strip().lstrip("@").removeprefix("https://t.me/")
+        if u and not (5 <= len(u) <= 32 and u.replace("_", "").isalnum()):
+            raise HTTPException(400, "Неверный username поддержки")
+        db.set_setting("support_username", u)
     return settings.all_settings()
 
 

@@ -37,6 +37,14 @@ async def start(msg: Message, command: CommandObject):
                 f"🎉 {msg.from_user.first_name} присоединился по вашей ссылке! +{REF_BONUS_COINS} {settings.coin()}")
         except Exception:
             pass
+    if user.get("banned") and not is_admin(msg.from_user):
+        sup = settings.support()
+        await msg.answer("⛔️ <b>Ваш аккаунт заблокирован.</b>\n\n" +
+                         (f"Для разблокировки обратитесь в техподдержку: @{sup}" if sup
+                          else "Для разблокировки обратитесь в техподдержку."),
+                         reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(
+                             text="Написать в поддержку", url=f"https://t.me/{sup}")]]) if sup else None)
+        return
     try:
         await msg.answer(settings.welcome(), reply_markup=kb())
     except Exception:  # некорректный HTML в тексте — отправляем без разметки
@@ -85,4 +93,5 @@ async def paid(msg: Message):
 
 @router.message(Command("paysupport"))
 async def paysupport(msg: Message):
-    await msg.answer("По вопросам оплаты напишите администратору. Возврат Stars возможен по запросу.")
+    sup = settings.support()
+    await msg.answer(f"По вопросам оплаты напишите в поддержку{': @' + sup if sup else ''}. Возврат Stars возможен по запросу.")

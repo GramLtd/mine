@@ -37,6 +37,8 @@ input,textarea{font:inherit;color:var(--label)}
 .footnote{font-size:13px;color:var(--label2);margin:7px 16px 0;line-height:1.35}
 
 /* ---------- pages ---------- */
+#banned:not([hidden]){display:flex}
+[hidden]{display:none!important}
 .page{display:none;animation:fade .35s cubic-bezier(.2,.8,.2,1)}
 .page.on{display:block}
 @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
@@ -258,6 +260,17 @@ textarea{width:100%;min-height:140px;border:0;outline:none;background:var(--bg2)
 
 <div id="admin-root"></div>
 
+<!-- ============ БЛОКИРОВКА ============ -->
+<div id="banned" hidden style="position:fixed;inset:0;z-index:50;background:var(--bg);flex-direction:column;align-items:center;justify-content:center;padding:32px;text-align:center">
+  <div style="width:84px;height:84px;border-radius:50%;background:color-mix(in srgb,var(--red) 15%,transparent);display:grid;place-items:center;margin-bottom:22px">
+    <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2" stroke-linecap="round"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg>
+  </div>
+  <h2 style="font-size:24px;font-weight:700;letter-spacing:-.02em;margin-bottom:10px">Аккаунт заблокирован</h2>
+  <p style="color:var(--label2);font-size:16px;line-height:1.4;max-width:300px">Доступ к майнингу ограничен. Чтобы узнать причину и восстановить аккаунт, обратитесь в техподдержку.</p>
+  <button class="btn primary" id="ban-support" style="width:100%;max-width:320px;margin-top:28px;flex:none">Написать в поддержку</button>
+  <p class="footnote" id="ban-user" style="margin-top:12px"></p>
+</div>
+
 <!-- ============ ВЫВОД ============ -->
 <div class="scrim" id="wd-scrim"></div>
 <div class="sheet" id="wd-sheet">
@@ -324,8 +337,16 @@ function hud(t, ok = true) { const h = $('hud'); h.textContent = t; h.classList.
 async function api(path, method = 'GET', body) {
   const r = await fetch(path, { method, headers: { 'X-Init-Data': tg.initData, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(j.detail || 'Ошибка сети');
+  if (r.status === 403 && j.detail?.banned) { showBanned(j.detail.support); throw new Error('Аккаунт заблокирован'); }
+  if (!r.ok) throw new Error(typeof j.detail === 'string' ? j.detail : 'Ошибка сети');
   return j;
+}
+
+function showBanned(sup) {
+  if (!$('banned').hidden) return;
+  $('banned').hidden = false; $('tabbar').style.display = 'none';
+  if (sup) { $('ban-user').textContent = '@' + sup; $('ban-support').onclick = () => tg.openTelegramLink(`https://t.me/${sup}`); }
+  else { $('ban-support').hidden = true; }
 }
 
 /* ---------- лопасти ---------- */

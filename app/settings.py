@@ -18,10 +18,15 @@ def withdraw_enabled() -> bool:
     return db.get_setting("withdraw_enabled", "1") == "1"
 
 
+def support() -> str:
+    return db.get_setting("support_username", "")
+
+
 def all_settings() -> dict:
     return {
         "coin_name": coin(),
         "welcome_text": db.get_setting("welcome_text", DEFAULT_WELCOME),
         "min_withdraw": min_withdraw(),
         "withdraw_enabled": withdraw_enabled(),
+        "support_username": support(),
     }
