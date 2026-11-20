@@ -111,6 +111,12 @@ async def do_mission(mid: str, tg=Depends(current_user)):
     return {"ok": True}
 
 
+@api.post("/api/tutorial")
+def tutorial_done(tg=Depends(current_user)):
+    db.update(load(tg)["id"], tutorial_done=1)
+    return {"ok": True}
+
+
 class SkinIn(BaseModel):
     skin: str
 

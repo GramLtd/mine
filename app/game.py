@@ -48,7 +48,7 @@ def tier_info(t, discount=False):
     word = "ядро" if c % 10 == 1 and c % 100 != 11 else "ядра" if 2 <= c % 10 <= 4 and not 12 <= c % 100 <= 14 else "ядер"
     final = round(price * (1 - FIRST_DISCOUNT), 2) if discount else price
     return {"tier": t, "cores": c, "ram": r, "spec": f"{c} {word} / {r} GB RAM", "hashrate": tier_hashrate(t),
-            "price": final, "full_price": price, "payback": payback, "stock": stock_left(t), "daily": daily_stock(t)}
+            "price": final, "full_price": price, "payback": payback, "daily_income": round(price / payback, 3), "stock": stock_left(t), "daily": daily_stock(t)}
 
 
 def upgrade_price(t) -> float:
@@ -241,6 +241,7 @@ def state(user, is_admin=False) -> dict:
     for s in db.servers(user["id"]):
         info = tier_info(s["tier"])
         my.append({"id": s["id"], "spec": info["spec"], "hashrate": info["hashrate"], "tier": s["tier"],
+                   "daily_income": info["daily_income"],
                    "expires": s["expires"], "active": s["expires"] > now,
                    "upgrade": ({"price": upgrade_price(s["tier"]), **{k: v for k, v in tier_info(s["tier"] + 1).items()
                                                                       if k in ("spec", "hashrate")}}
@@ -273,4 +274,5 @@ def state(user, is_admin=False) -> dict:
         "shop": [{"id": k, "title": t, "desc": d, "stars": p, "cat": c, "ton": settings.stars_to_ton(p)}
                  for k, (t, d, p, c) in SHOP.items()],
         "is_admin": is_admin,
+        "tutorial_done": bool(user.get("tutorial_done")),
     }

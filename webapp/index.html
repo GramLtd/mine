@@ -81,6 +81,34 @@ input,textarea{font:inherit;color:var(--label)}
 .srv .bt .pill{flex:1;height:36px;font-size:14px}
 .old{color:var(--label3);text-decoration:line-through;font-weight:500;margin-right:4px;font-size:13px}
 .paylist .cell{cursor:pointer}
+.help{width:30px;height:30px;border-radius:50%;background:var(--fill);color:var(--label2);font-weight:700;font-size:15px;flex:none}
+.hint{text-align:center;font-size:13px;color:var(--label2);margin-top:4px;min-height:18px}
+.hint.warn{color:var(--orange);font-weight:600}
+.steps{padding:4px 16px 6px}
+.steps li{list-style:none;display:flex;gap:12px;align-items:flex-start;padding:8px 0}
+.steps li i{flex:none;width:24px;height:24px;border-radius:50%;background:var(--fill);color:var(--blue);font:700 13px/24px inherit;text-align:center;font-style:normal}
+.steps li b{display:block;font-size:15px;font-weight:600}
+.steps li small{color:var(--label2);font-size:13px}
+.lead{color:var(--label2);font-size:15px;margin:-8px 4px 14px;line-height:1.35}
+/* обучение */
+#tour{position:fixed;inset:0;z-index:60;display:none}
+#tour.on{display:block}
+#tour .slides{position:absolute;inset:0;background:var(--bg);display:flex;flex-direction:column;padding:calc(28px + env(safe-area-inset-top)) 24px calc(24px + env(safe-area-inset-bottom))}
+#tour .skip{align-self:flex-end;color:var(--label2);font-size:15px;height:32px}
+#tour .slide{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;animation:fade .35s}
+#tour .art{width:132px;height:132px;border-radius:36px;display:grid;place-items:center;margin-bottom:28px;color:#fff;box-shadow:0 20px 50px -14px currentColor}
+#tour .art svg{width:66px;height:66px;color:#fff}
+#tour h2{font-size:26px;font-weight:700;letter-spacing:-.02em;margin-bottom:10px}
+#tour p{color:var(--label2);font-size:16px;line-height:1.45;max-width:330px}
+#tour .dots{display:flex;gap:7px;justify-content:center;margin:18px 0}
+#tour .dots i{width:7px;height:7px;border-radius:4px;background:var(--fill);transition:all .3s}
+#tour .dots i.on{width:22px;background:var(--blue)}
+#tour .spot{position:fixed;border-radius:18px;box-shadow:0 0 0 9999px rgba(0,0,0,.72);transition:all .35s cubic-bezier(.2,.8,.2,1);pointer-events:none}
+#tour .tip{position:fixed;left:16px;right:16px;background:var(--bg2);border-radius:16px;padding:16px;box-shadow:0 12px 40px rgba(0,0,0,.4);transition:top .35s cubic-bezier(.2,.8,.2,1)}
+#tour .tip b{display:block;font-size:17px;margin-bottom:4px}
+#tour .tip p{font-size:14px;max-width:none}
+#tour .tip .row{display:flex;justify-content:space-between;align-items:center;margin-top:12px}
+#tour .tip .row span{font-size:13px;color:var(--label3)}
 .paylist .cell[disabled]{opacity:.4;pointer-events:none}
 .swatch{width:32px;height:32px;border-radius:50%;flex:none;box-shadow:inset 0 1px 3px rgba(255,255,255,.4),0 0 0 .5px var(--sep)}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -202,7 +230,7 @@ textarea{width:100%;min-height:140px;border:0;outline:none;background:var(--bg2)
 <!-- ============ ГЛАВНАЯ ============ -->
 <section id="home" class="page on">
   <div class="balance">
-    <div class="top"><div><small>Баланс</small><b class="num" id="bal">0.0000<span>HASH</span></b></div><div class="chip" id="lvlchip">—</div></div>
+    <div class="top"><div><small>Баланс</small><b class="num" id="bal">0.0000<span>HASH</span></b></div><div style="display:flex;gap:6px;align-items:center"><div class="chip" id="lvlchip">—</div><button class="help" id="help" aria-label="Обучение">?</button></div></div>
     <div class="row"><button class="pill" id="topopen" style="background:var(--blue);color:#fff">Пополнить</button><button class="pill" id="wdopen">Вывести</button></div>
   </div>
 
@@ -246,10 +274,17 @@ textarea{width:100%;min-height:140px;border:0;outline:none;background:var(--bg2)
 
   <div class="mined num" id="mined">0.0000000000<span id="minedcoin"></span></div>
   <div class="sub" id="rate">— GH/s</div>
+  <div class="hint" id="hint"></div>
 
   <div class="group" id="act-box" hidden style="margin-top:14px">
     <div class="cell"><div class="ic" style="background:var(--green)"><svg><use href="#i-bolt"/></svg></div>
-      <div class="tx"><b>Запустите майнинг</b><small id="act-sub"></small></div></div>
+      <div class="tx"><b>Как начать майнить</b><small id="act-sub"></small></div></div>
+    <ol class="steps">
+      <li><i>1</i><div><b>Арендуйте сервер</b><small>В магазине — выберите любой тариф на 30 дней</small></div></li>
+      <li><i>2</i><div><b>Сервер майнит сам</b><small>Круглосуточно, даже когда приложение закрыто</small></div></li>
+      <li><i>3</i><div><b>Забирайте каждые <span class="st-h">4</span> ч</b><small>Хранилище заполняется — нажмите «Забрать». Бот напомнит</small></div></li>
+      <li><i>4</i><div><b>Выводите TON</b><small>1 монета = 1 TON, вывод на ваш кошелёк</small></div></li>
+    </ol>
     <div style="padding:0 16px 14px"><button class="btn primary" id="act-go" style="height:46px;width:100%">Выбрать сервер</button></div>
   </div>
 
@@ -263,6 +298,7 @@ textarea{width:100%;min-height:140px;border:0;outline:none;background:var(--bg2)
 <!-- ============ МОИ СЕРВЕРЫ ============ -->
 <section id="myservers" class="page">
   <h1 class="large-title">Мои серверы</h1>
+  <p class="lead">Серверы майнят, пока действует аренда. Следите за сроком и продлевайте вовремя.</p>
   <div class="group">
     <div class="cell"><div class="ic" style="background:var(--indigo)"><svg><use href="#i-bolt"/></svg></div>
       <div class="tx"><b id="ms-total">—</b><small id="ms-count"></small></div></div>
@@ -302,6 +338,7 @@ textarea{width:100%;min-height:140px;border:0;outline:none;background:var(--bg2)
 <!-- ============ МАГАЗИН ============ -->
 <section id="shop" class="page">
   <h1 class="large-title">Магазин</h1>
+  <p class="lead">Арендуйте серверы для майнинга и ускоряйте их бустами.</p>
   <div class="caption" id="s-srv-cap">Серверы</div>
   <div class="group" id="s-servers"></div>
   <p class="footnote" id="s-srv-note"></p>
@@ -346,6 +383,18 @@ textarea{width:100%;min-height:140px;border:0;outline:none;background:var(--bg2)
   <button class="btn primary" id="wd-send" style="width:100%;margin-top:16px">Создать заявку</button>
   <div class="caption">История</div>
   <div class="group" id="wd-hist"></div>
+</div>
+
+<!-- ============ ОБУЧЕНИЕ ============ -->
+<div id="tour">
+  <div class="slides" id="tour-slides">
+    <button class="skip" id="tour-skip">Пропустить</button>
+    <div class="slide" id="tour-slide"></div>
+    <div class="dots" id="tour-dots"></div>
+    <button class="btn primary" id="tour-next" style="width:100%;flex:none">Далее</button>
+  </div>
+  <div class="spot" id="tour-spot" hidden></div>
+  <div class="tip" id="tour-tip" hidden><b id="tip-t"></b><p id="tip-p"></p><div class="row"><span id="tip-n"></span><button class="pill" id="tip-next">Далее</button></div></div>
 </div>
 
 <!-- ============ СПОСОБ ОПЛАТЫ ============ -->
@@ -490,12 +539,25 @@ function render(s) {
   $('claim').disabled = !n && !(s.pending > 0);
   document.querySelector('.fan').classList.toggle('off', !n);
   renderMyServers(s);
+  document.querySelectorAll('.st-h').forEach(x => x.textContent = s.storage_hours);
+  if (!s.tutorial_done && !tourSeen()) setTimeout(() => startTour(), 400);
   document.querySelector('.fan').dataset.skin = s.skin || '';
   document.querySelector('.fan').style.setProperty('--spin', (1.6 / (s.boost?.mult || 1)) + 's');
   if (s.is_admin && !adminLoaded) loadAdminUI();
   renderShop(s);
 }
+let lastHint = 0;
+function updHint() {
+  if (!S) return;
+  const h = $('hint'), max = S.rate_per_sec * S.storage_hours * 3600;
+  if (!S.active_count) { h.className = 'hint'; h.textContent = S.pending > 0 ? 'Заберите остаток намайненного' : 'Арендуйте сервер, чтобы начать'; return; }
+  const v = Math.min(base + S.rate_per_sec * (performance.now() - t0) / 1000, max), left = (max - v) / S.rate_per_sec;
+  const daily = `≈ ${fmt(S.rate_per_sec * 86400, 3)} в день`;
+  if (left <= 1) { h.className = 'hint warn'; h.textContent = 'Хранилище заполнено — нажмите «Забрать», чтобы майнинг продолжился'; }
+  else { h.className = 'hint'; const hh = Math.floor(left / 3600), mm = Math.floor(left % 3600 / 60); h.textContent = `${daily} · заполнится через ${hh ? hh + ' ч ' : ''}${mm} мин`; }
+}
 function tick() {
+  if (performance.now() - lastHint > 1000) { lastHint = performance.now(); updHint(); }
   if (S) {
     const max = S.rate_per_sec * S.storage_hours * 3600;
     const v = Math.min(base + S.rate_per_sec * (performance.now() - t0) / 1000, max);
@@ -550,7 +612,7 @@ function renderMyServers(s) {
     const left = Math.max(0, m.expires - now), days = Math.ceil(left / 86400);
     const card = el('div', { class: 'srv', style: m.active ? '' : 'opacity:.6' });
     card.append(el('div', { class: 'hd' }, icon('fan', m.active ? 'var(--indigo)' : 'var(--label3)'),
-      el('div', { class: 'tx' }, el('b', {}, m.spec), el('small', {}, `${m.hashrate.toLocaleString('ru')} GH/s`)),
+      el('div', { class: 'tx' }, el('b', {}, m.spec), el('small', {}, `${m.hashrate.toLocaleString('ru')} GH/s · ≈ ${fmt(m.daily_income * (1 - s.fee), 2)} TON/день`)),
       el('span', { class: 'val', style: m.active ? (days <= 3 ? 'color:var(--orange)' : '') : 'color:var(--red)' },
         m.active ? (left < 86400 ? `< 1 дня` : `${days} ${plural(days, 'день', 'дня', 'дней')}`) : 'Истёк')));
     const bar = el('div', { class: 'bar' }, el('i', { style: `width:${Math.min(100, left / (s.rent_days * 86400) * 100)}%` }));
@@ -624,12 +686,13 @@ function renderShop(s) {
   ['boost', 'storage', 'skin', 'servers'].forEach(c => $('s-' + c).innerHTML = '');
   const hrs = Math.max(0, Math.round((s.restock_at - Date.now() / 1000) / 3600));
   $('s-srv-cap').textContent = s.first_discount ? `Серверы · первый −${Math.round(s.first_discount * 100)}%` : 'Серверы';
-  $('s-srv-note').textContent = `Аренда на ${s.rent_days} дней. Склад пополняется каждый день в 12:00 МСК (через ${hrs} ч). Окупаемость указана без комиссии.`;
+  $('s-srv-note').textContent = `Аренда на ${s.rent_days} дней. Склад пополняется каждый день в 12:00 МСК (через ${hrs} ч).` + (s.fee ? ` Доход указан с учётом комиссии ${Math.round(s.fee * 100)}%.` : '');
   s.servers.forEach(sv => {
     const out = sv.stock <= 0;
     const tx = el('div', { class: 'tx' }, el('b', {}, sv.spec),
-      el('small', {}, `${sv.hashrate.toLocaleString('ru')} GH/s · окуп. ~${sv.payback} дн · `,
-        el('span', { style: out ? 'color:var(--red)' : sv.stock < 10 ? 'color:var(--orange)' : '' }, out ? 'нет' : `${sv.stock} шт`)));
+      el('small', { style: 'display:block;color:var(--green)' }, `≈ ${fmt(sv.daily_income * (1 - s.fee), 2)} TON/день · окуп. ~${Math.ceil(sv.payback / (1 - s.fee))} дн`),
+      el('small', { style: 'display:block' }, `${sv.hashrate.toLocaleString('ru')} GH/s · `,
+        el('span', { style: out ? 'color:var(--red)' : sv.stock < 10 ? 'color:var(--orange)' : '' }, out ? 'нет в наличии' : `осталось ${sv.stock} шт`)));
     tx.firstChild.style.whiteSpace = 'normal';
     let act;
     if (out) act = el('button', { class: 'pill', disabled: '' }, 'Нет');
@@ -765,6 +828,71 @@ async function loadMissions() {
       el('div', { class: 'tx' }, el('b', {}, m.title), el('small', {}, `+${m.reward} ${S?.coin || ''}`)), b));
   });
 }
+
+/* ---------- обучение ---------- */
+const tourSeen = () => { try { return localStorage.getItem('tour_done') === '1'; } catch { return false; } };
+let tourStarted = false;
+const SLIDES = () => [
+  ['fan', 'var(--indigo)', `Добро пожаловать в ${S?.coin || 'TonCry'}`, 'Арендуйте облачные серверы — они майнят TON для вас круглосуточно. Разберёмся за минуту.'],
+  ['bag', 'var(--blue)', 'Арендуйте сервер', `Выберите тариф в магазине. Аренда — на ${S?.rent_days || 30} дней. Первый сервер со скидкой ${Math.round((S?.first_discount || .25) * 100)}%. Чем мощнее сервер, тем быстрее окупается.`],
+  ['down', 'var(--green)', 'Забирайте намайненное', `Монеты копятся в хранилище до ${S?.storage_hours || 4} ч. Заходите и жмите «Забрать», иначе майнинг остановится. Бот пришлёт напоминание.`],
+  ['paper', 'var(--orange)', 'Выводите TON', '1 монета = 1 TON. Пополняйте баланс, платите им за серверы и выводите прибыль на свой кошелёк.'],
+];
+const SPOTS = [
+  ['.balance', 'Баланс', 'Здесь ваши монеты. Пополняйте баланс в TON и выводите на кошелёк.'],
+  ['.stage', 'Майнинг', 'Вентилятор крутится, пока работают серверы. Кольцо показывает, насколько заполнено хранилище.'],
+  ['#claim', 'Забрать', 'Переводит намайненное на баланс и освобождает хранилище.'],
+  ['#tabbar [data-p="myservers"]', 'Мои серверы', 'Срок аренды, доход, улучшение и продление каждого сервера.'],
+  ['#tabbar [data-p="shop"]', 'Магазин', 'Аренда серверов, бусты и скины. Начните отсюда!'],
+];
+let tIdx = 0, tMode = 'slides';
+function startTour() {
+  if (tourStarted) return; tourStarted = true;
+  go('home'); tIdx = 0; tMode = 'slides';
+  $('tour').classList.add('on'); $('tour-slides').hidden = false; $('tour-spot').hidden = $('tour-tip').hidden = true;
+  showSlide();
+}
+function showSlide() {
+  const sl = SLIDES(), [ic, bg, t, p] = sl[tIdx];
+  $('tour-slide').innerHTML = '';
+  const art = el('div', { class: 'art', style: `background:${bg};color:${bg}` }); art.innerHTML = `<svg><use href="#i-${ic}"/></svg>`;
+  $('tour-slide').append(art, el('h2', {}, t), el('p', {}, p));
+  $('tour-dots').innerHTML = ''; sl.forEach((_, i) => $('tour-dots').append(el('i', { class: i === tIdx ? 'on' : '' })));
+  $('tour-next').textContent = tIdx === sl.length - 1 ? 'Показать, где что' : 'Далее';
+}
+function showSpot() {
+  const [sel, t, p] = SPOTS[tIdx], e = document.querySelector(sel);
+  if (!e) return nextStep();
+  e.scrollIntoView({ block: 'center' });
+  setTimeout(() => {
+    const r = e.getBoundingClientRect(), pad = 6, sp = $('tour-spot');
+    Object.assign(sp.style, { left: r.left - pad + 'px', top: r.top - pad + 'px', width: r.width + pad * 2 + 'px', height: r.height + pad * 2 + 'px' });
+    $('tip-t').textContent = t; $('tip-p').textContent = p; $('tip-n').textContent = `${tIdx + 1} из ${SPOTS.length}`;
+    $('tip-next').textContent = tIdx === SPOTS.length - 1 ? 'Понятно' : 'Далее';
+    const tip = $('tour-tip'), below = r.bottom + 14, th = tip.offsetHeight || 130;
+    tip.style.top = (below + th < innerHeight - 20 ? below : Math.max(16, r.top - th - 14)) + 'px';
+  }, 250);
+}
+function nextStep() {
+  haptic('selectionChanged');
+  if (tMode === 'slides') {
+    if (++tIdx < SLIDES().length) return showSlide();
+    tMode = 'spots'; tIdx = 0; $('tour-slides').hidden = true; $('tour-spot').hidden = $('tour-tip').hidden = false;
+    return showSpot();
+  }
+  if (++tIdx < SPOTS.length) return showSpot();
+  endTour(true);
+}
+function endTour(toShop) {
+  $('tour').classList.remove('on'); tourStarted = false;
+  try { localStorage.setItem('tour_done', '1'); } catch {}
+  api('/api/tutorial', 'POST').catch(() => {});
+  if (S) S.tutorial_done = true;
+  if (toShop && S && !S.active_count) go('shop');
+}
+$('tour-next').onclick = $('tip-next').onclick = nextStep;
+$('tour-skip').onclick = () => endTour(false);
+$('help').onclick = () => startTour();
 
 /* ---------- навигация ---------- */
 function bindTab(b) { b.onclick = () => {
