@@ -12,6 +12,14 @@ DB_PATH = os.getenv("DB_PATH", "game.db")
 # Админы: по username (без @) и/или по числовому ID. ID надёжнее — username можно сменить.
 ADMIN_USERNAMES = {u.strip().lstrip("@").lower() for u in
                    os.getenv("ADMIN_USERNAMES", "ibuybalenciaga").split(",") if u.strip()}
+# --- Оплата в TON ---
+TON_WALLET = os.getenv("TON_WALLET", "").strip()           # кошелёк, на который приходят оплаты
+TONCENTER_API_KEY = os.getenv("TONCENTER_API_KEY", "")     # необязательно, снимает лимит 1 rps
+TONCENTER_URL = os.getenv("TONCENTER_URL", "https://toncenter.com/api/v2")
+# Какие товары можно оплатить в TON и цена по умолчанию (меняется в админке)
+TON_PRICES = {"boost2": 0.5, "boost3": 0.75}
+TON_ORDER_TTL = 3600  # сколько секунд ждём оплату по заказу
+
 ADMIN_IDS = {int(x) for x in os.getenv("ADMIN_IDS", "").split(",") if x.strip().isdigit()}
 
 # --- Экономика игры (виртуальная валюта, без реальных денег) ---

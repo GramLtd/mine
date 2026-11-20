@@ -70,6 +70,7 @@ def state(user, is_admin=False) -> dict:
     nxt = LEVELS[lvl + 1] if lvl + 1 < len(LEVELS) else None
     now = time.time()
     b = boost(user, now)
+    ton_prices = settings.ton_prices()
     hr = base_hashrate(user) * b
     return {
         "coin": settings.coin(),
@@ -86,6 +87,6 @@ def state(user, is_admin=False) -> dict:
         "max_level": len(LEVELS),
         "boost": {"mult": b, "until": user["boost_until"]} if b > 1 else None,
         "next_level": {"hashrate": nxt[0], "price": nxt[1]} if nxt else None,
-        "shop": [{"id": k, "title": t, "desc": d, "stars": p, "cat": c} for k, (t, d, p, c) in SHOP.items()],
+        "shop": [{"id": k, "title": t, "desc": d, "stars": p, "cat": c, "ton": ton_prices.get(k)} for k, (t, d, p, c) in SHOP.items()],
         "is_admin": is_admin,
     }

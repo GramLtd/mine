@@ -45,6 +45,13 @@
       <div class="cell field noicon"><span>Вывод включён</span><label class="sw"><input type="checkbox" id="s-wden"><span></span></label></div>
       <label class="cell field noicon"><span>Минимум</span><input id="s-min" type="number" step="any" inputmode="decimal"></label>
     </div>
+    <div class="caption">Оплата в TON</div>
+    <div class="group">
+      <label class="cell field noicon"><span>Кошелёк</span><input id="s-tonw" placeholder="UQ…" autocapitalize="off" spellcheck="false"></label>
+      <label class="cell field noicon"><span>Буст ×2, TON</span><input id="s-ton-boost2" type="number" step="any" inputmode="decimal"></label>
+      <label class="cell field noicon"><span>Буст ×3, TON</span><input id="s-ton-boost3" type="number" step="any" inputmode="decimal"></label>
+    </div>
+    <p class="footnote">Цена 0 или пустой кошелёк — оплата в TON для товара отключена.</p>
     <div class="caption">Приветствие в боте (/start)</div>
     <textarea id="s-welcome" placeholder="HTML: <b>, <i>, <a href>. {coin} — название монеты"></textarea>
     <button class="btn primary" id="s-save" style="width:100%;margin-top:12px">Сохранить настройки</button>
@@ -240,10 +247,11 @@ async function loadSettings() {
   loadMs();
   const s = await api('/api/admin/settings');
   $('s-coin').value = s.coin_name; $('s-min').value = s.min_withdraw; $('s-wden').checked = s.withdraw_enabled; $('s-welcome').value = s.welcome_text; $('s-support').value = s.support_username ? '@' + s.support_username : '';
+  $('s-tonw').value = s.ton_wallet || ''; $('s-ton-boost2').value = s.ton_prices.boost2; $('s-ton-boost3').value = s.ton_prices.boost3;
 }
 $('s-save').onclick = async () => {
   try {
-    await api('/api/admin/settings', 'POST', { coin_name: $('s-coin').value, min_withdraw: +$('s-min').value, withdraw_enabled: $('s-wden').checked, welcome_text: $('s-welcome').value, support_username: $('s-support').value });
+    await api('/api/admin/settings', 'POST', { coin_name: $('s-coin').value, min_withdraw: +$('s-min').value, withdraw_enabled: $('s-wden').checked, welcome_text: $('s-welcome').value, support_username: $('s-support').value, ton_wallet: $('s-tonw').value, ton_prices: { boost2: +$('s-ton-boost2').value, boost3: +$('s-ton-boost3').value } });
     hud('Сохранено'); render(await api('/api/state'));
   } catch (e) { hud(e.message, false); }
 };

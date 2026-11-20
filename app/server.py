@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import secrets
 import time
 from pathlib import Path
 
@@ -12,7 +13,7 @@ from pydantic import BaseModel
 from . import db, game, settings, ton
 from .auth import current_user
 from .config import (LEVELS, DAILY_BONUS, CHANNEL_USERNAME, REF_BONUS_COINS, SHOP, STORAGE_ITEMS,
-                     ADMIN_IDS, ADMIN_USERNAMES)
+                     ADMIN_IDS, ADMIN_USERNAMES, TON_PRICES)
 
 WEB = Path(__file__).resolve().parent.parent / "webapp"
 ADMIN_UI = Path(__file__).resolve().parent / "admin_ui"  # не публикуется как статика
@@ -193,6 +194,51 @@ async def stars_invoice(body: InvoiceIn, tg=Depends(current_user)):
     return {"link": link}
 
 
+# ---------- оплата в TON ----------
+async def ton_paid(order):
+    game.apply_item(order["user_id"], order["item"])
+    title = SHOP[order["item"]][0]
+    amount = order["nano"] / ton.NANO
+    try:
+        await bot.send_message(order["user_id"], f"✅ Оплата {amount:g} TON получена — «{title}» активирован.")
+    except Exception:
+        pass
+    for aid in ADMIN_IDS:
+        try:
+            await bot.send_message(aid, f"💎 TON-оплата #{order['id']}: {amount:g} TON · {title} · id {order['user_id']}")
+        except Exception:
+            pass
+
+
+@api.post("/api/ton/order")
+def ton_order(body: InvoiceIn, tg=Depends(current_user)):
+    user = load(tg)
+    prices = settings.ton_prices()
+    if body.item not in prices:
+        raise HTTPException(400, "Этот товар нельзя оплатить в TON")
+    nano = round(prices[body.item] * ton.NANO)
+    comment = f"TC{user['id']}-{secrets.token_hex(3)}"
+    oid = db.ton_order_create(user["id"], body.item, nano, comment)
+    wallet = settings.ton_wallet()
+    return {"id": oid, "address": wallet, "amount": nano / ton.NANO, "nano": nano, "comment": comment,
+            "title": SHOP[body.item][0], **ton.transfer_links(wallet, nano, comment)}
+
+
+@api.post("/api/ton/order/{oid}/check")
+async def ton_order_check(oid: int, tg=Depends(current_user)):
+    user = load(tg)
+    o = db.ton_order_get(oid)
+    if not o or o["user_id"] != user["id"]:
+        raise HTTPException(404, "Заказ не найден")
+    if o["status"] == "pending":
+        try:
+            await ton.check_payments(ton_paid)
+        except Exception as e:
+            log.warning("TON check failed: %s", e)
+        o = db.ton_order_get(oid)
+    return {"status": o["status"], **game.state(load(tg), is_admin(tg))}
+
+
 # ---------- Админка ----------
 @api.get("/api/admin/stats")
 def a_stats(_=Depends(admin)):
@@ -343,6 +389,8 @@ class SettingsIn(BaseModel):
     min_withdraw: float | None = None
     withdraw_enabled: bool | None = None
     support_username: str | None = None
+    ton_wallet: str | None = None
+    ton_prices: dict[str, float] | None = None
 
 
 @api.post("/api/admin/settings")
@@ -365,6 +413,15 @@ def a_set_settings(body: SettingsIn, _=Depends(admin)):
         if u and not (5 <= len(u) <= 32 and u.replace("_", "").isalnum()):
             raise HTTPException(400, "Неверный username поддержки")
         db.set_setting("support_username", u)
+    if body.ton_wallet is not None:
+        w = body.ton_wallet.strip()
+        if w and not ton.valid_address(w):
+            raise HTTPException(400, "Неверный TON-адрес кошелька для оплат")
+        db.set_setting("ton_wallet", w)
+    if body.ton_prices is not None:
+        for k, v in body.ton_prices.items():
+            if k in TON_PRICES:
+                db.set_setting(f"ton_price_{k}", max(0.0, float(v or 0)))
     return settings.all_settings()
 
 

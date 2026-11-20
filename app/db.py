@@ -47,6 +47,17 @@ def init():
             PRIMARY KEY(user_id, mission_id)
         );
         CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT);
+        CREATE TABLE IF NOT EXISTS ton_orders(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            item TEXT,
+            nano INTEGER,
+            comment TEXT UNIQUE,
+            status TEXT DEFAULT 'pending',
+            tx TEXT UNIQUE,
+            created REAL,
+            paid REAL
+        );
         CREATE TABLE IF NOT EXISTS withdrawals(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER,
@@ -268,3 +279,39 @@ def mission_complete(uid, mid) -> bool:
 def mission_counts():
     with conn() as c:
         return {r[0]: r[1] for r in c.execute("SELECT mission_id, COUNT(*) FROM mission_done GROUP BY mission_id")}
+
+
+# ---------- оплата в TON ----------
+def ton_order_create(uid, item, nano, comment) -> int:
+    with conn() as c:
+        return c.execute("INSERT INTO ton_orders(user_id,item,nano,comment,created) VALUES(?,?,?,?,?)",
+                         (uid, item, nano, comment, time.time())).lastrowid
+
+
+def ton_order_get(oid):
+    with conn() as c:
+        r = c.execute("SELECT * FROM ton_orders WHERE id=?", (oid,)).fetchone()
+        return dict(r) if r else None
+
+
+def ton_orders_pending(since):
+    with conn() as c:
+        return [dict(r) for r in c.execute(
+            "SELECT * FROM ton_orders WHERE status='pending' AND created>?", (since,))]
+
+
+def ton_order_mark_paid(oid, tx) -> bool:
+    """Атомарно: True только у первого, кто отметил заказ (защита от двойного начисления)."""
+    with conn() as c:
+        try:
+            cur = c.execute("UPDATE ton_orders SET status='paid', tx=?, paid=? WHERE id=? AND status='pending'",
+                            (tx, time.time(), oid))
+        except sqlite3.IntegrityError:
+            return False
+        return cur.rowcount == 1
+
+
+def ton_orders(limit=50):
+    with conn() as c:
+        return [dict(r) for r in c.execute(
+            "SELECT * FROM ton_orders WHERE status='paid' ORDER BY paid DESC LIMIT ?", (limit,))]

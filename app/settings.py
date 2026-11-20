@@ -1,5 +1,5 @@
 from . import db
-from .config import COIN, DEFAULT_WELCOME, MIN_WITHDRAW
+from .config import COIN, DEFAULT_WELCOME, MIN_WITHDRAW, TON_WALLET, TON_PRICES
 
 
 def coin() -> str:
@@ -22,6 +22,21 @@ def support() -> str:
     return db.get_setting("support_username", "")
 
 
+def ton_wallet() -> str:
+    return db.get_setting("ton_wallet", TON_WALLET) or ""
+
+
+def ton_price(item) -> float:
+    return float(db.get_setting(f"ton_price_{item}", TON_PRICES.get(item, 0)))
+
+
+def ton_prices() -> dict:
+    """Только товары с ценой > 0 и только если задан кошелёк."""
+    if not ton_wallet():
+        return {}
+    return {k: p for k in TON_PRICES if (p := ton_price(k)) > 0}
+
+
 def all_settings() -> dict:
     return {
         "coin_name": coin(),
@@ -29,4 +44,6 @@ def all_settings() -> dict:
         "min_withdraw": min_withdraw(),
         "withdraw_enabled": withdraw_enabled(),
         "support_username": support(),
+        "ton_wallet": ton_wallet(),
+        "ton_prices": {k: ton_price(k) for k in TON_PRICES},
     }
