@@ -91,11 +91,13 @@ input,textarea{font:inherit;color:var(--label)}
 .steps li small{color:var(--label2);font-size:13px}
 .lead{color:var(--label2);font-size:15px;margin:-8px 4px 14px;line-height:1.35}
 /* обучение */
-#tour{position:fixed;inset:0;z-index:60;display:none}
-#tour.on{display:block}
-#tour .slides{position:absolute;inset:0;background:var(--bg);display:flex;flex-direction:column;padding:calc(28px + env(safe-area-inset-top)) 24px calc(24px + env(safe-area-inset-bottom))}
+#tour{position:fixed;inset:0;z-index:60;visibility:hidden;opacity:0;transition:opacity .3s,visibility 0s .3s}
+#tour.on{visibility:visible;opacity:1;transition:opacity .3s}
+#tour .slides{position:absolute;inset:0;transition:opacity .3s;background:var(--bg);display:flex;flex-direction:column;padding:calc(28px + env(safe-area-inset-top)) 24px calc(24px + env(safe-area-inset-bottom))}
 #tour .skip{align-self:flex-end;color:var(--label2);font-size:15px;height:32px}
-#tour .slide{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;animation:fade .35s}
+#tour .slide{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;transition:opacity .2s,transform .2s}
+#tour .slide.out{opacity:0;transform:translateX(-14px)}
+#tour .slide.in{opacity:0;transform:translateX(14px);transition:none}
 #tour .art{width:132px;height:132px;border-radius:36px;display:grid;place-items:center;margin-bottom:28px;color:#fff;box-shadow:0 20px 50px -14px currentColor}
 #tour .art svg{width:66px;height:66px;color:#fff}
 #tour h2{font-size:26px;font-weight:700;letter-spacing:-.02em;margin-bottom:10px}
@@ -103,8 +105,10 @@ input,textarea{font:inherit;color:var(--label)}
 #tour .dots{display:flex;gap:7px;justify-content:center;margin:18px 0}
 #tour .dots i{width:7px;height:7px;border-radius:4px;background:var(--fill);transition:all .3s}
 #tour .dots i.on{width:22px;background:var(--blue)}
-#tour .spot{position:fixed;border-radius:18px;box-shadow:0 0 0 9999px rgba(0,0,0,.72);transition:all .35s cubic-bezier(.2,.8,.2,1);pointer-events:none}
-#tour .tip{position:fixed;left:16px;right:16px;background:var(--bg2);border-radius:16px;padding:16px;box-shadow:0 12px 40px rgba(0,0,0,.4);transition:top .35s cubic-bezier(.2,.8,.2,1)}
+#tour .spot{position:fixed;border-radius:18px;box-shadow:0 0 0 9999px rgba(0,0,0,.72);pointer-events:none;will-change:left,top,width,height;transition:left .35s cubic-bezier(.2,.8,.2,1),top .35s cubic-bezier(.2,.8,.2,1),width .35s cubic-bezier(.2,.8,.2,1),height .35s cubic-bezier(.2,.8,.2,1),opacity .25s}
+#tour .spot.jump{transition:opacity .25s}
+#tour .tip{position:fixed;left:16px;right:16px;background:var(--bg2);border-radius:16px;padding:16px;box-shadow:0 12px 40px rgba(0,0,0,.4);transition:opacity .2s,transform .2s}
+#tour .tip.hide{opacity:0;transform:translateY(6px)}
 #tour .tip b{display:block;font-size:17px;margin-bottom:4px}
 #tour .tip p{font-size:14px;max-width:none}
 #tour .tip .row{display:flex;justify-content:space-between;align-items:center;margin-top:12px}
@@ -283,7 +287,7 @@ textarea{width:100%;min-height:140px;border:0;outline:none;background:var(--bg2)
       <li><i>1</i><div><b>Арендуйте сервер</b><small>В магазине — выберите любой тариф на 30 дней</small></div></li>
       <li><i>2</i><div><b>Сервер майнит сам</b><small>Круглосуточно, даже когда приложение закрыто</small></div></li>
       <li><i>3</i><div><b>Забирайте каждые <span class="st-h">4</span> ч</b><small>Хранилище заполняется — нажмите «Забрать». Бот напомнит</small></div></li>
-      <li><i>4</i><div><b>Выводите TON</b><small>1 монета = 1 TON, вывод на ваш кошелёк</small></div></li>
+      <li><i>4</i><div><b>Выводите TON</b><small>Вывод на ваш TON-кошелёк</small></div></li>
     </ol>
     <div style="padding:0 16px 14px"><button class="btn primary" id="act-go" style="height:46px;width:100%">Выбрать сервер</button></div>
   </div>
@@ -690,7 +694,7 @@ function renderShop(s) {
   s.servers.forEach(sv => {
     const out = sv.stock <= 0;
     const tx = el('div', { class: 'tx' }, el('b', {}, sv.spec),
-      el('small', { style: 'display:block;color:var(--green)' }, `≈ ${fmt(sv.daily_income * (1 - s.fee), 2)} TON/день · окуп. ~${Math.ceil(sv.payback / (1 - s.fee))} дн`),
+      el('small', { style: 'display:block;color:var(--green)' }, `≈ ${fmt(sv.daily_income * (1 - s.fee), 2)} TON в день`),
       el('small', { style: 'display:block' }, `${sv.hashrate.toLocaleString('ru')} GH/s · `,
         el('span', { style: out ? 'color:var(--red)' : sv.stock < 10 ? 'color:var(--orange)' : '' }, out ? 'нет в наличии' : `осталось ${sv.stock} шт`)));
     tx.firstChild.style.whiteSpace = 'normal';
@@ -834,9 +838,9 @@ const tourSeen = () => { try { return localStorage.getItem('tour_done') === '1';
 let tourStarted = false;
 const SLIDES = () => [
   ['fan', 'var(--indigo)', `Добро пожаловать в ${S?.coin || 'TonCry'}`, 'Арендуйте облачные серверы — они майнят TON для вас круглосуточно. Разберёмся за минуту.'],
-  ['bag', 'var(--blue)', 'Арендуйте сервер', `Выберите тариф в магазине. Аренда — на ${S?.rent_days || 30} дней. Первый сервер со скидкой ${Math.round((S?.first_discount || .25) * 100)}%. Чем мощнее сервер, тем быстрее окупается.`],
+  ['bag', 'var(--blue)', 'Арендуйте сервер', `Выберите тариф в магазине. Аренда — на ${S?.rent_days || 30} дней. Первый сервер со скидкой ${Math.round((S?.first_discount || .25) * 100)}%.`],
   ['down', 'var(--green)', 'Забирайте намайненное', `Монеты копятся в хранилище до ${S?.storage_hours || 4} ч. Заходите и жмите «Забрать», иначе майнинг остановится. Бот пришлёт напоминание.`],
-  ['paper', 'var(--orange)', 'Выводите TON', '1 монета = 1 TON. Пополняйте баланс, платите им за серверы и выводите прибыль на свой кошелёк.'],
+  ['paper', 'var(--orange)', 'Выводите TON', 'Пополняйте баланс, оплачивайте им серверы и выводите прибыль на свой TON-кошелёк.'],
 ];
 const SPOTS = [
   ['.balance', 'Баланс', 'Здесь ваши монеты. Пополняйте баланс в TON и выводите на кошелёк.'],
@@ -845,50 +849,80 @@ const SPOTS = [
   ['#tabbar [data-p="myservers"]', 'Мои серверы', 'Срок аренды, доход, улучшение и продление каждого сервера.'],
   ['#tabbar [data-p="shop"]', 'Магазин', 'Аренда серверов, бусты и скины. Начните отсюда!'],
 ];
-let tIdx = 0, tMode = 'slides';
+let tIdx = 0, tMode = 'slides', tBusy = false, tFirstSpot = true;
+const wait = ms => new Promise(r => setTimeout(r, ms));
 function startTour() {
   if (tourStarted) return; tourStarted = true;
-  go('home'); tIdx = 0; tMode = 'slides';
-  $('tour').classList.add('on'); $('tour-slides').hidden = false; $('tour-spot').hidden = $('tour-tip').hidden = true;
-  showSlide();
+  go('home'); tIdx = 0; tMode = 'slides'; tFirstSpot = true;
+  $('tour-slides').hidden = false; $('tour-slides').style.opacity = 1;
+  $('tour-spot').hidden = $('tour-tip').hidden = true;
+  renderSlide(); $('tour').classList.add('on');
 }
-function showSlide() {
-  const sl = SLIDES(), [ic, bg, t, p] = sl[tIdx];
-  $('tour-slide').innerHTML = '';
+function renderSlide() {
+  const sl = SLIDES(), [ic, bg, t, p] = sl[tIdx], box = $('tour-slide');
+  box.innerHTML = '';
   const art = el('div', { class: 'art', style: `background:${bg};color:${bg}` }); art.innerHTML = `<svg><use href="#i-${ic}"/></svg>`;
-  $('tour-slide').append(art, el('h2', {}, t), el('p', {}, p));
-  $('tour-dots').innerHTML = ''; sl.forEach((_, i) => $('tour-dots').append(el('i', { class: i === tIdx ? 'on' : '' })));
+  box.append(art, el('h2', {}, t), el('p', {}, p));
+  $('tour-dots').querySelectorAll('i').length !== sl.length && ($('tour-dots').innerHTML = sl.map(() => '<i></i>').join(''));
+  $('tour-dots').querySelectorAll('i').forEach((d, i) => d.classList.toggle('on', i === tIdx));
   $('tour-next').textContent = tIdx === sl.length - 1 ? 'Показать, где что' : 'Далее';
 }
-function showSpot() {
+async function changeSlide() {
+  const box = $('tour-slide');
+  box.classList.add('out'); await wait(200);
+  renderSlide(); box.classList.remove('out'); box.classList.add('in');
+  void box.offsetWidth; box.classList.remove('in');
+}
+// ждём, пока страница докрутится (плавный скролл), чтобы подсветка не «прыгала»
+async function scrollToEl(e) {
+  const r = e.getBoundingClientRect(), fixed = getComputedStyle(e.closest('#tabbar') || e).position === 'fixed';
+  if (fixed) return;
+  const target = Math.max(0, scrollY + r.top + r.height / 2 - innerHeight / 2);
+  if (Math.abs(target - scrollY) < 4) return;
+  scrollTo({ top: target, behavior: 'smooth' });
+  let last = -1, same = 0;
+  for (let i = 0; i < 60 && same < 3; i++) { await new Promise(requestAnimationFrame); same = scrollY === last ? same + 1 : 0; last = scrollY; }
+}
+function placeSpot(e) {
+  const r = e.getBoundingClientRect(), pad = 6, sp = $('tour-spot');
+  Object.assign(sp.style, { left: r.left - pad + 'px', top: r.top - pad + 'px', width: r.width + pad * 2 + 'px', height: r.height + pad * 2 + 'px' });
+  return r;
+}
+async function showSpot() {
   const [sel, t, p] = SPOTS[tIdx], e = document.querySelector(sel);
   if (!e) return nextStep();
-  e.scrollIntoView({ block: 'center' });
-  setTimeout(() => {
-    const r = e.getBoundingClientRect(), pad = 6, sp = $('tour-spot');
-    Object.assign(sp.style, { left: r.left - pad + 'px', top: r.top - pad + 'px', width: r.width + pad * 2 + 'px', height: r.height + pad * 2 + 'px' });
-    $('tip-t').textContent = t; $('tip-p').textContent = p; $('tip-n').textContent = `${tIdx + 1} из ${SPOTS.length}`;
-    $('tip-next').textContent = tIdx === SPOTS.length - 1 ? 'Понятно' : 'Далее';
-    const tip = $('tour-tip'), below = r.bottom + 14, th = tip.offsetHeight || 130;
-    tip.style.top = (below + th < innerHeight - 20 ? below : Math.max(16, r.top - th - 14)) + 'px';
-  }, 250);
+  const tip = $('tour-tip'), sp = $('tour-spot');
+  tip.classList.add('hide');
+  await scrollToEl(e);
+  if (tFirstSpot) { sp.classList.add('jump'); sp.style.opacity = 0; sp.hidden = false; tip.hidden = false; }
+  const r = placeSpot(e);
+  if (tFirstSpot) { void sp.offsetWidth; sp.style.opacity = 1; sp.classList.remove('jump'); tFirstSpot = false; }
+  $('tip-t').textContent = t; $('tip-p').textContent = p; $('tip-n').textContent = `${tIdx + 1} из ${SPOTS.length}`;
+  $('tip-next').textContent = tIdx === SPOTS.length - 1 ? 'Понятно' : 'Далее';
+  const th = tip.offsetHeight || 130, below = r.bottom + 14;
+  tip.style.top = (below + th < innerHeight - 20 ? below : Math.max(16, r.top - th - 14)) + 'px';
+  await wait(200); tip.classList.remove('hide');
 }
-function nextStep() {
-  haptic('selectionChanged');
-  if (tMode === 'slides') {
-    if (++tIdx < SLIDES().length) return showSlide();
-    tMode = 'spots'; tIdx = 0; $('tour-slides').hidden = true; $('tour-spot').hidden = $('tour-tip').hidden = false;
-    return showSpot();
-  }
-  if (++tIdx < SPOTS.length) return showSpot();
-  endTour(true);
+async function nextStep() {
+  if (tBusy) return; tBusy = true; haptic('selectionChanged');
+  try {
+    if (tMode === 'slides') {
+      if (++tIdx < SLIDES().length) return await changeSlide();
+      tMode = 'spots'; tIdx = 0;
+      $('tour-slides').style.opacity = 0; await wait(250); $('tour-slides').hidden = true;
+      return await showSpot();
+    }
+    if (++tIdx < SPOTS.length) return await showSpot();
+    endTour(true);
+  } finally { tBusy = false; }
 }
+addEventListener('resize', () => { if (tourStarted && tMode === 'spots') { const e = document.querySelector(SPOTS[tIdx][0]); e && placeSpot(e); } });
 function endTour(toShop) {
   $('tour').classList.remove('on'); tourStarted = false;
   try { localStorage.setItem('tour_done', '1'); } catch {}
   api('/api/tutorial', 'POST').catch(() => {});
   if (S) S.tutorial_done = true;
-  if (toShop && S && !S.active_count) go('shop');
+  if (toShop && S && !S.active_count) setTimeout(() => go('shop'), 300);
 }
 $('tour-next').onclick = $('tip-next').onclick = nextStep;
 $('tour-skip').onclick = () => endTour(false);
