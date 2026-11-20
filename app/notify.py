@@ -21,10 +21,11 @@ async def storage_watcher(bot, interval: int = 60):
                 hours = game.storage_hours(u)
                 if amount <= 0:
                     continue
-                text = (f"⛏ <b>Майнинг завершён!</b>\n\n"
-                        f"За {hours:g} ч ферма намайнила <b>{amount:.6f} {settings.coin()}</b>.\n"
-                        f"Хранилище заполнено — майнинг остановлен. "
-                        f"Зайдите в бота и заберите награду, чтобы ферма снова заработала.")
+                period = "сутки" if hours == 24 else f"{hours:g} ч"
+                text = (f"⛏ <b>Майнинг остановлен</b>\n\n"
+                        f"За {period} ваши серверы намайнили <b>{amount:.6f} {settings.coin()}</b>.\n\n"
+                        f"Хранилище заполнено. <b>Зайдите и нажмите «Забрать», чтобы майнинг продолжился</b> — "
+                        f"пока награда не собрана, серверы не майнят.")
                 try:
                     await bot.send_message(u["id"], text, reply_markup=kb())
                 except TelegramRetryAfter as e:
