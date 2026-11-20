@@ -6,8 +6,22 @@ def coin() -> str:
     return db.get_setting("coin_name", COIN)
 
 
-def welcome() -> str:
+DEFAULT_WELCOME_EN = ("<b>Welcome!</b>\n\n"
+                      "Rent servers — they mine {coin} around the clock. Claim your rewards once a day and invite friends.")
+
+
+def welcome(lang="ru") -> str:
+    if lang == "en":
+        return db.get_setting("welcome_text_en", DEFAULT_WELCOME_EN).replace("{coin}", coin())
     return db.get_setting("welcome_text", DEFAULT_WELCOME).replace("{coin}", coin())
+
+
+def reject_templates() -> list:
+    import json
+    try:
+        return json.loads(db.get_setting("reject_templates", "[]"))
+    except ValueError:
+        return []
 
 
 def min_withdraw() -> float:
@@ -75,6 +89,7 @@ def all_settings() -> dict:
     return {
         "coin_name": coin(),
         "welcome_text": db.get_setting("welcome_text", DEFAULT_WELCOME),
+        "welcome_text_en": db.get_setting("welcome_text_en", DEFAULT_WELCOME_EN),
         "min_withdraw": min_withdraw(),
         "withdraw_enabled": withdraw_enabled(),
         "support_username": support(),

@@ -9,6 +9,7 @@ from aiogram.types import (Message, InlineKeyboardMarkup, InlineKeyboardButton, 
                            InlineQueryResultsButton, ChosenInlineResult, CallbackQuery, InlineQueryResultPhoto)
 
 from . import db, game, settings
+from .i18n import L, t, norm
 from .config import WEBAPP_URL, SHOP, ADMIN_IDS, ADMIN_USERNAMES
 
 router = Router()
@@ -18,9 +19,17 @@ def is_admin(u) -> bool:
     return u.id in ADMIN_IDS or (u.username or "").lower() in ADMIN_USERNAMES
 
 
-def kb():
+def lang_of(uid, tg_user=None) -> str:
+    """Язык игрока: выбранный в приложении, иначе — язык Telegram."""
+    u = db.get(uid)
+    if u and u.get("lang"):
+        return u["lang"]
+    return norm(getattr(tg_user, "language_code", None))
+
+
+def kb(lang="ru"):
     return InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text="Открыть TonCry", web_app=WebAppInfo(url=WEBAPP_URL))
+        InlineKeyboardButton(text=L(lang, "Открыть TonCry", "Open TonCry"), web_app=WebAppInfo(url=WEBAPP_URL))
     ]])
 
 
@@ -34,24 +43,30 @@ async def start(msg: Message, command: CommandObject):
             pass
     user, created = db.get_or_create(msg.from_user.id, msg.from_user.first_name, ref,
                                      username=msg.from_user.username)
+    if not user.get("lang"):
+        db.update(user["id"], lang=norm(msg.from_user.language_code))
+    lang = lang_of(msg.from_user.id, msg.from_user)
     if created and user["referrer"]:
+        rl = lang_of(user["referrer"])
         try:
             await msg.bot.send_message(
-                user["referrer"],
+                user["referrer"], L(rl,
                 f"👋 {msg.from_user.first_name} присоединился по вашей ссылке! Вы получите "
-                f"+{settings.ref_bonus():g} {settings.coin()}, когда он арендует первый сервер.")
+                f"+{settings.ref_bonus():g} {settings.coin()}, когда он арендует первый сервер.",
+                f"👋 {msg.from_user.first_name} joined via your link! You'll get "
+                f"+{settings.ref_bonus():g} {settings.coin()} when they rent their first server."))
         except Exception:
             pass
     if user.get("banned") and not is_admin(msg.from_user):
         sup = settings.support()
-        await msg.answer("⛔️ <b>Ваш аккаунт заблокирован.</b>\n\n" +
-                         (f"Для разблокировки обратитесь в техподдержку: @{sup}" if sup
-                          else "Для разблокировки обратитесь в техподдержку."),
+        await msg.answer(L(lang, "⛔️ <b>Ваш аккаунт заблокирован.</b>\n\n", "⛔️ <b>Your account is blocked.</b>\n\n") +
+                         (L(lang, f"Для разблокировки обратитесь в техподдержку: @{sup}", f"Contact support to unblock: @{sup}") if sup
+                          else L(lang, "Для разблокировки обратитесь в техподдержку.", "Contact support to unblock.")),
                          reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(
-                             text="Написать в поддержку", url=f"https://t.me/{sup}")]]) if sup else None)
+                             text=L(lang, "Написать в поддержку", "Contact support"), url=f"https://t.me/{sup}")]]) if sup else None)
         return
     try:
-        await msg.answer(settings.welcome(), reply_markup=kb())
+        await msg.answer(settings.welcome(lang), reply_markup=kb(lang))
     except Exception:  # некорректный HTML в тексте — отправляем без разметки
         await msg.answer(settings.welcome(), reply_markup=kb(), parse_mode=None)
 
@@ -83,11 +98,11 @@ async def pre_checkout(q: PreCheckoutQuery):
         try:
             game.check(user, item)
         except game.NotBuyable as e:
-            return await q.answer(ok=False, error_message=str(e))
+            return await q.answer(ok=False, error_message=t(str(e), lang_of(q.from_user.id, q.from_user)))
     if ok:
         await q.answer(ok=True)
     else:
-        await q.answer(ok=False, error_message="Не удалось оформить покупку, попробуйте ещё раз.")
+        await q.answer(ok=False, error_message=L(lang_of(q.from_user.id, q.from_user), "Не удалось оформить покупку, попробуйте ещё раз.", "Could not complete the purchase, please try again."))
 
 
 @router.message(F.successful_payment)
@@ -95,7 +110,8 @@ async def paid(msg: Message):
     sp = msg.successful_payment
     pl = sp.invoice_payload
     item = pl.split("|")[0] if "|" in pl else pl.partition(":")[0]  # старый формат: item:uid
-    err = None
+    err, refunded = None, False
+    lang = lang_of(msg.from_user.id, msg.from_user)
     if db.add_payment(sp.telegram_payment_charge_id, msg.from_user.id, item, sp.total_amount):
         # если выдать уже нельзя (склад кончился) — возвращаем звёзды
         err = game.apply_item(msg.from_user.id, item)
@@ -103,16 +119,22 @@ async def paid(msg: Message):
             try:
                 await msg.bot.refund_star_payment(msg.from_user.id, sp.telegram_payment_charge_id)
                 db.mark_refunded(sp.telegram_payment_charge_id)
-                err += " Звёзды возвращены."
+                refunded = True
             except Exception:
                 pass
-    await msg.answer(f"⚠️ {err}" if err else f"⭐ Спасибо! «{game.item_title(item)}» — готово.", reply_markup=kb())
+    if err:
+        text = f"⚠️ {t(err, lang)}" + (L(lang, " Звёзды возвращены.", " Stars refunded.") if refunded else "")
+    else:
+        text = L(lang, f"⭐ Спасибо! «{game.item_title(item)}» — готово.", f"⭐ Thank you! “{t(game.item_title(item), 'en')}” — done.")
+    await msg.answer(text, reply_markup=kb(lang))
 
 
 @router.message(Command("paysupport"))
 async def paysupport(msg: Message):
     sup = settings.support()
-    await msg.answer(f"По вопросам оплаты напишите в поддержку{': @' + sup if sup else ''}. Возврат Stars возможен по запросу.")
+    lang = lang_of(msg.from_user.id, msg.from_user)
+    await msg.answer(L(lang, f"По вопросам оплаты напишите в поддержку{': @' + sup if sup else ''}. Возврат Stars возможен по запросу.",
+                       f"For payment questions contact support{': @' + sup if sup else ''}. Stars refunds are available on request."))
 
 
 # ---------- чеки: @бот 1.5 в любом чате ----------
@@ -124,9 +146,9 @@ def _amount(text: str):
     return float(m.group(1).replace(",", ".")) if m else None
 
 
-def _check_kb(cid, creator, amount):
+def _check_kb(cid, creator, amount, lang="ru"):
     return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(
-        text=f"💎 Получить {amount:g} {settings.coin()}", callback_data=f"c:{creator}:{round(amount * 10000)}:{cid}")]])
+        text=L(lang, f"💎 Получить {amount:g} {settings.coin()}", f"💎 Claim {amount:g} {settings.coin()}"), callback_data=f"c:{creator}:{round(amount * 10000)}:{cid}")]])
 
 
 def _done_kb(text, bot_username):
@@ -137,30 +159,32 @@ def _done_kb(text, bot_username):
 async def inline_check(q: InlineQuery):
     user = db.get(q.from_user.id)
     coin = settings.coin()
+    lang = lang_of(q.from_user.id, q.from_user)
     open_btn = lambda t: InlineQueryResultsButton(text=t, start_parameter="checks")
     if not user or user.get("banned"):
-        return await q.answer([], cache_time=0, is_personal=True, button=open_btn("Откройте бота, чтобы отправлять чеки"))
+        return await q.answer([], cache_time=0, is_personal=True, button=open_btn(L(lang, "Откройте бота, чтобы отправлять чеки", "Open the bot to send checks")))
     bal = user["balance"]
     amount = _amount(q.query)
     if amount is None:
         return await q.answer([], cache_time=0, is_personal=True,
-                              button=open_btn(f"Введите сумму чека · баланс {bal:.4f} {coin}"))
+                              button=open_btn(L(lang, f"Введите сумму чека · баланс {bal:.4f} {coin}", f"Enter check amount · balance {bal:.4f} {coin}")))
     if amount < CHECK_MIN:
-        return await q.answer([], cache_time=0, is_personal=True, button=open_btn(f"Минимум {CHECK_MIN:g} {coin}"))
+        return await q.answer([], cache_time=0, is_personal=True, button=open_btn(L(lang, f"Минимум {CHECK_MIN:g} {coin}", f"Minimum {CHECK_MIN:g} {coin}")))
     if amount > bal:
         return await q.answer([], cache_time=0, is_personal=True,
-                              button=open_btn(f"Недостаточно средств · баланс {bal:.4f} {coin}"))
+                              button=open_btn(L(lang, f"Недостаточно средств · баланс {bal:.4f} {coin}", f"Insufficient funds · balance {bal:.4f} {coin}")))
     cid = secrets.token_hex(6)
     from .server import _rub
     rub = _rub(amount)
-    caption = f"🎁 Чек на 💎 <b>{amount:g} {coin}</b>" + (f" (≈ {rub} ₽)" if rub else "") + "."
+    caption = L(lang, f"🎁 Чек на 💎 <b>{amount:g} {coin}</b>" + (f" (≈ {rub} ₽)" if rub else "") + ".",
+                f"🎁 Check for 💎 <b>{amount:g} {coin}</b>.")
     base = WEBAPP_URL.rstrip("/")
     await q.answer([InlineQueryResultPhoto(
         id=cid, photo_url=f"{base}/check/{amount:g}.jpg", thumbnail_url=f"{base}/check/{amount:g}.jpg?thumb=1",
-        photo_width=1280, photo_height=720, title=f"Чек на {amount:g} {coin}",
-        description=f"Спишется с баланса · осталось {bal - amount:.4f}",
+        photo_width=1280, photo_height=720, title=L(lang, f"Чек на {amount:g} {coin}", f"Check for {amount:g} {coin}"),
+        description=L(lang, f"Спишется с баланса · осталось {bal - amount:.4f}", f"Paid from balance · {bal - amount:.4f} left"),
         caption=caption, parse_mode="HTML",
-        reply_markup=_check_kb(cid, q.from_user.id, amount))], cache_time=0, is_personal=True)
+        reply_markup=_check_kb(cid, q.from_user.id, amount, lang))], cache_time=0, is_personal=True)
 
 
 @router.chosen_inline_result()
@@ -174,7 +198,7 @@ async def chosen_check(r: ChosenInlineResult):
         try:
             me = await r.bot.me()
             await r.bot.edit_message_reply_markup(inline_message_id=r.inline_message_id,
-                                                  reply_markup=_done_kb("❌ Недостаточно средств", me.username))
+                                                  reply_markup=_done_kb(L(lang_of(r.from_user.id, r.from_user), "❌ Недостаточно средств", "❌ Insufficient funds"), me.username))
         except Exception:
             pass
 
@@ -188,6 +212,8 @@ async def claim_check(cb: CallbackQuery):
         return await cb.answer()
     coin = settings.coin()
     me = await cb.bot.me()
+    lc = lang_of(creator)                       # язык отправителя — для надписей на самом чеке
+    lu = lang_of(cb.from_user.id, cb.from_user)  # язык нажавшего — для всплывающих ответов
 
     async def edit(label):  # меняем кнопку на «✅ Получено» со ссылкой на бота
         mk = _done_kb(label, me.username)
@@ -197,34 +223,36 @@ async def claim_check(cb: CallbackQuery):
             await cb.message.edit_reply_markup(reply_markup=mk)
     if cb.from_user.id == creator:
         if db.check_cancel(cid, creator, amount) == "ok":
-            await cb.answer(f"Чек отменён, {amount:g} {coin} вернулись на баланс", show_alert=True)
+            await cb.answer(L(lu, f"Чек отменён, {amount:g} {coin} вернулись на баланс", f"Check cancelled, {amount:g} {coin} returned to balance"), show_alert=True)
             try:
-                await edit(f"🚫 Отменён: {amount:g} {coin}")
+                await edit(L(lc, f"🚫 Отменён: {amount:g} {coin}", f"🚫 Cancelled: {amount:g} {coin}"))
             except Exception:
                 pass
         else:
-            await cb.answer("Чек уже недействителен", show_alert=True)
+            await cb.answer(L(lu, "Чек уже недействителен", "This check is no longer valid"), show_alert=True)
         return
     u, _ = db.get_or_create(cb.from_user.id, cb.from_user.first_name, username=cb.from_user.username)
     if u.get("banned"):
-        return await cb.answer("Аккаунт заблокирован", show_alert=True)
+        return await cb.answer(L(lu, "Аккаунт заблокирован", "Account blocked"), show_alert=True)
     res = db.check_claim(cid, creator, amount, cb.from_user.id)
     if res == "ok":
         name = html.escape(cb.from_user.first_name or "")
-        await cb.answer(f"+{amount:g} {coin} на баланс!", show_alert=True)
+        await cb.answer(L(lu, f"+{amount:g} {coin} на баланс!", f"+{amount:g} {coin} added to your balance!"), show_alert=True)
         try:
-            await edit(f"✅ Получено: {amount:g} {coin}")
+            await edit(L(lc, f"✅ Получено: {amount:g} {coin}", f"✅ Received: {amount:g} {coin}"))
         except Exception:
             pass
         try:
-            await cb.bot.send_message(creator, f"✅ {name} получил ваш чек на {amount:g} {coin}.")
+            await cb.bot.send_message(creator, L(lc, f"✅ {name} получил ваш чек на {amount:g} {coin}.", f"✅ {name} claimed your check for {amount:g} {coin}."))
         except Exception:
             pass
         try:
-            await cb.bot.send_message(cb.from_user.id, f"💎 Вы получили чек на <b>{amount:g} {coin}</b>!", reply_markup=kb())
+            await cb.bot.send_message(cb.from_user.id, L(lu, f"💎 Вы получили чек на <b>{amount:g} {coin}</b>!", f"💎 You received a check for <b>{amount:g} {coin}</b>!"), reply_markup=kb(lu))
         except Exception:
             pass
     else:
-        await cb.answer({"claimed": "Чек уже получен", "cancelled": "Чек отменён отправителем",
-                         "failed": "Чек недействителен", "no_funds": "У отправителя недостаточно средств"}.get(res, "Чек недействителен"),
+        msgs = {"claimed": ("Чек уже получен", "Check already claimed"), "cancelled": ("Чек отменён отправителем", "Check cancelled by sender"),
+                "failed": ("Чек недействителен", "Check is invalid"), "no_funds": ("У отправителя недостаточно средств", "Sender has insufficient funds")}
+        ru_m, en_m = msgs.get(res, msgs["failed"])
+        await cb.answer(L(lu, ru_m, en_m),
                         show_alert=True)

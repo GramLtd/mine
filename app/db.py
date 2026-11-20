@@ -97,9 +97,12 @@ def init():
                 c.execute(f"ALTER TABLE users ADD COLUMN {col} {ddl}")
         if "activated" not in cols:
             c.execute("ALTER TABLE users ADD COLUMN activated INTEGER DEFAULT 1")
-        for col, ddl in [("no_fee", "INTEGER DEFAULT 0"), ("bought_server", "INTEGER DEFAULT 0"), ("tutorial_done", "INTEGER DEFAULT 0"), ("acc", "REAL DEFAULT 0"), ("acc_since", "REAL DEFAULT 0")]:
+        for col, ddl in [("no_fee", "INTEGER DEFAULT 0"), ("bought_server", "INTEGER DEFAULT 0"), ("tutorial_done", "INTEGER DEFAULT 0"), ("acc", "REAL DEFAULT 0"), ("acc_since", "REAL DEFAULT 0"), ("lang", "TEXT DEFAULT ''")]:
             if col not in cols:
                 c.execute(f"ALTER TABLE users ADD COLUMN {col} {ddl}")
+        wcols = {r["name"] for r in c.execute("PRAGMA table_info(withdrawals)")}
+        if "reason" not in wcols:
+            c.execute("ALTER TABLE withdrawals ADD COLUMN reason TEXT")
         if "ref_paid" not in cols:  # бонус за друга — когда он арендует первый сервер; старым не платим повторно
             c.execute("ALTER TABLE users ADD COLUMN ref_paid INTEGER DEFAULT 0")
             c.execute("UPDATE users SET ref_paid=1 WHERE bought_server=1")
@@ -267,13 +270,14 @@ def withdrawals(uid=None, status=None, limit=50):
         return [dict(r) for r in c.execute(sql, args)]
 
 
-def finish_withdrawal(wid, status, tx=None):
+def finish_withdrawal(wid, status, tx=None, reason=None):
     """status: paid | rejected. При отклонении монеты возвращаются. Возвращает заявку или None."""
     with conn() as c:
         w = c.execute("SELECT * FROM withdrawals WHERE id=? AND status='pending'", (wid,)).fetchone()
         if not w:
             return None
-        c.execute("UPDATE withdrawals SET status=?, tx=?, processed=? WHERE id=?", (status, tx, time.time(), wid))
+        c.execute("UPDATE withdrawals SET status=?, tx=?, reason=?, processed=? WHERE id=?",
+                  (status, tx, reason, time.time(), wid))
         if status == "rejected":
             c.execute("UPDATE users SET balance=balance+? WHERE id=?", (w["amount"], w["user_id"]))
         return dict(w)

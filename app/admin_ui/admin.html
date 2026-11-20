@@ -61,6 +61,8 @@
     <p class="footnote">Через запятую, по тарифам от младшего к старшему. Склад пополняется каждый день в 12:00 МСК. Остатки сейчас видны в магазине.</p>
     <div class="caption">Приветствие в боте (/start)</div>
     <textarea id="s-welcome" placeholder="HTML: <b>, <i>, <a href>. {coin} — название монеты"></textarea>
+    <div class="caption">Приветствие на английском</div>
+    <textarea id="s-welcome-en" placeholder="English welcome text. {coin} — coin name"></textarea>
     <button class="btn primary" id="s-save" style="width:100%;margin-top:12px">Сохранить настройки</button>
 
     <div class="caption" style="margin-top:30px">Платные задания (реклама каналов)</div>
@@ -80,6 +82,22 @@
     <p class="footnote">~20 сообщений в секунду. По окончании бот пришлёт отчёт.</p>
   </div>
 </section>
+
+<!-- ============ ОТКЛОНЕНИЕ ВЫВОДА ============ -->
+<div class="scrim" id="rj-scrim"></div>
+<div class="sheet" id="rj-sheet">
+  <div class="grabber"></div>
+  <div class="sheet-head"><button id="rj-cancel">Отмена</button><h3 id="rj-title">Отклонить</h3><button id="rj-ok" style="font-weight:600;color:var(--red)">Отклонить</button></div>
+  <p class="footnote" id="rj-info" style="margin-top:0"></p>
+  <div class="caption">Комментарий для игрока</div>
+  <textarea id="rj-text" placeholder="Например: адрес кошелька указан неверно" style="min-height:90px"></textarea>
+  <div class="group" style="margin-top:10px">
+    <div class="cell field noicon"><span>Сохранить как шаблон</span><label class="sw"><input type="checkbox" id="rj-save"><span></span></label></div>
+  </div>
+  <div class="caption">Шаблоны</div>
+  <div class="group" id="rj-tpls"></div>
+  <p class="footnote">Нажмите на шаблон, чтобы вставить его. Средства вернутся игроку на баланс, комментарий придёт ему в бота.</p>
+</div>
 
 <!-- ============ ЛИСТ РЕДАКТИРОВАНИЯ ============ -->
 <div class="scrim" id="scrim"></div>
@@ -223,16 +241,43 @@ async function loadWd() {
       const ok = el('button', { class: 'pill', style: 'color:var(--green)' }, 'Выплачено');
       ok.onclick = () => { const h = prompt('Хеш транзакции (необязательно):', ''); if (h !== null) wdAct(w, 'paid', h.trim() || null); };
       const no = el('button', { class: 'pill', style: 'color:var(--red)' }, 'Отклонить');
-      no.onclick = () => tg.showConfirm ? tg.showConfirm(`Отклонить #${w.id} и вернуть монеты?`, y => y && wdAct(w, 'rejected')) : wdAct(w, 'rejected');
+      no.onclick = () => openReject(w);
       cell.append(el('div', { style: 'display:flex;flex-wrap:wrap;gap:6px;width:100%;padding-left:44px;margin-top:6px' }, copy, ok, no));
     } else if (w.tx) cell.append(el('small', { style: 'width:100%;padding-left:44px;color:var(--label2);word-break:break-all' }, 'tx: ' + w.tx));
+    if (w.status === 'rejected' && w.reason) cell.append(el('small', { style: 'width:100%;padding-left:44px;color:var(--label2);white-space:normal' }, 'Причина: ' + w.reason));
     box.append(cell);
   });
 }
-async function wdAct(w, action, tx) {
-  try { await api('/api/admin/withdrawals/' + w.id, 'POST', { action, tx }); hud(action === 'paid' ? 'Отмечено как выплачено' : 'Отклонено, монеты возвращены'); loadWd(); }
-  catch (e) { hud(e.message, false); }
+async function wdAct(w, action, tx, extra = {}) {
+  try { await api('/api/admin/withdrawals/' + w.id, 'POST', { action, tx, ...extra }); hud(action === 'paid' ? 'Отмечено как выплачено' : 'Отклонено, средства возвращены'); loadWd(); return true; }
+  catch (e) { hud(e.message, false); return false; }
 }
+/* отклонение с комментарием и шаблонами */
+let rjW = null;
+function rjSheet(on) { $('rj-scrim').classList.toggle('on', on); $('rj-sheet').classList.toggle('on', on); }
+$('rj-scrim').onclick = $('rj-cancel').onclick = () => rjSheet(false);
+function renderTpls(list) {
+  const box = $('rj-tpls'); box.innerHTML = '';
+  if (!list.length) box.append(el('div', { class: 'empty' }, 'Шаблонов пока нет'));
+  list.forEach(tx => {
+    const del = el('button', { class: 'pill', style: 'color:var(--red)' }, '✕');
+    del.onclick = async e => { e.stopPropagation(); try { renderTpls((await api('/api/admin/reject_templates/delete', 'POST', { text: tx })).templates); } catch (er) { hud(er.message, false); } };
+    const c = el('div', { class: 'cell noicon', style: 'cursor:pointer' }, el('div', { class: 'tx' }, el('small', { style: 'white-space:normal;color:var(--label);font-size:15px' }, tx)), del);
+    c.onclick = () => { $('rj-text').value = tx; $('rj-save').checked = false; };
+    box.append(c);
+  });
+}
+async function openReject(w) {
+  rjW = w; $('rj-title').textContent = `Отклонить #${w.id}`;
+  $('rj-info').textContent = `${fmt(w.amount, 4)} ${S?.coin || ''} · ${w.name || w.user_id}${w.username ? ' @' + w.username : ''}`;
+  $('rj-text').value = ''; $('rj-save').checked = false; rjSheet(true);
+  try { renderTpls((await api('/api/admin/reject_templates')).templates); } catch (e) { hud(e.message, false); }
+}
+$('rj-ok').onclick = async () => {
+  if (!rjW) return;
+  const reason = $('rj-text').value.trim();
+  if (await wdAct(rjW, 'rejected', null, { reason, save_template: $('rj-save').checked && !!reason })) rjSheet(false);
+};
 
 /* ---------- настройки ---------- */
 async function loadMs() {
@@ -254,12 +299,12 @@ $('m-add').onclick = async () => {
 async function loadSettings() {
   loadMs();
   const s = await api('/api/admin/settings');
-  $('s-coin').value = s.coin_name; $('s-min').value = s.min_withdraw; $('s-wden').checked = s.withdraw_enabled; $('s-welcome').value = s.welcome_text; $('s-support').value = s.support_username ? '@' + s.support_username : '';
+  $('s-coin').value = s.coin_name; $('s-min').value = s.min_withdraw; $('s-wden').checked = s.withdraw_enabled; $('s-welcome').value = s.welcome_text; $('s-welcome-en').value = s.welcome_text_en || ''; $('s-support').value = s.support_username ? '@' + s.support_username : '';
   $('s-tonw').value = s.ton_wallet || ''; $('s-starrub').value = s.star_rub; $('s-nofee').value = s.nofee_price; $('s-ref').value = s.ref_bonus; $('s-stock').value = (S?.servers || []).map(x => x.daily ?? '').join(', '); $('s-tonrub').value = s.ton_rub; $('s-ton-note').textContent = `Цены в TON = звёзды × цена звезды / курс TON. Сейчас 1 TON ≈ ${s.ton_rub_live.toFixed(2)} ₽ (tonapi.io; запасной курс — если сервис недоступен). Пустой кошелёк — оплата в TON отключена.`;
 }
 $('s-save').onclick = async () => {
   try {
-    await api('/api/admin/settings', 'POST', { coin_name: $('s-coin').value, min_withdraw: +$('s-min').value, withdraw_enabled: $('s-wden').checked, welcome_text: $('s-welcome').value, support_username: $('s-support').value, ton_wallet: $('s-tonw').value, star_rub: +$('s-starrub').value, nofee_price: +$('s-nofee').value, ref_bonus: +$('s-ref').value, ...($('s-stock').value.trim() ? { stock_daily: $('s-stock').value.split(',').map(x => +x.trim() || 0) } : {}), ton_rub: +$('s-tonrub').value }); loadSettings();
+    await api('/api/admin/settings', 'POST', { coin_name: $('s-coin').value, min_withdraw: +$('s-min').value, withdraw_enabled: $('s-wden').checked, welcome_text: $('s-welcome').value, welcome_text_en: $('s-welcome-en').value, support_username: $('s-support').value, ton_wallet: $('s-tonw').value, star_rub: +$('s-starrub').value, nofee_price: +$('s-nofee').value, ref_bonus: +$('s-ref').value, ...($('s-stock').value.trim() ? { stock_daily: $('s-stock').value.split(',').map(x => +x.trim() || 0) } : {}), ton_rub: +$('s-tonrub').value }); loadSettings();
     hud('Сохранено'); render(await api('/api/state'));
   } catch (e) { hud(e.message, false); }
 };

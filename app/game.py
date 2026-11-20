@@ -2,7 +2,7 @@ import math
 import time
 from datetime import datetime, timedelta, timezone
 
-from . import db, settings
+from . import db, settings, i18n
 from .config import (SERVERS, RENT_DAYS, FIRST_DISCOUNT, UPGRADE_MARKUP, MINING_FEE, NOFEE_PRICE,
                      STOCK_RESET_HOUR_MSK, COIN_PER_GH_PER_SEC, STORAGE_HOURS, SHOP, STORAGE_ITEMS)
 
@@ -288,7 +288,7 @@ def state(user, is_admin=False) -> dict:
         "nofee_price": float(db.get_setting("nofee_price", NOFEE_PRICE)),
         "ton_enabled": ton_on,
         "star_rate": settings.ton_rub() / settings.star_rub(),
-        "shop": [{"id": k, "title": t, "desc": d, "stars": p, "cat": c, "ton": settings.stars_to_ton(p)}
+        "shop": [{"id": k, "title": i18n.t(t), "desc": i18n.t(d), "stars": p, "cat": c, "ton": settings.stars_to_ton(p)}
                  for k, (t, d, p, c) in SHOP.items()],
         "is_admin": is_admin,
         "tutorial_done": bool(user.get("tutorial_done")),

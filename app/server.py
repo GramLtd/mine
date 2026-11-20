@@ -1,4 +1,6 @@
 import asyncio
+import html
+import json
 import logging
 import secrets
 import time
@@ -10,7 +12,8 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import db, game, settings, ton
+from . import db, game, settings, ton, i18n
+from .i18n import t, L
 from .auth import current_user
 from .config import (SERVERS, RENT_DAYS, DAILY_BONUS, CHANNEL_USERNAME, SHOP, STORAGE_ITEMS,
                      ADMIN_IDS, ADMIN_USERNAMES, WEBAPP_URL, TOPUP_MIN)
@@ -18,6 +21,28 @@ from .config import (SERVERS, RENT_DAYS, DAILY_BONUS, CHANNEL_USERNAME, SHOP, ST
 WEB = Path(__file__).resolve().parent.parent / "webapp"
 ADMIN_UI = Path(__file__).resolve().parent / "admin_ui"  # не публикуется как статика
 api = FastAPI()
+
+
+@api.middleware("http")
+async def lang_mw(request, call_next):
+    """Язык интерфейса игрока: заголовок X-Lang (ru/en) от мини-приложения."""
+    lang = request.headers.get("x-lang", "ru")
+    i18n.lang_var.set("en" if lang == "en" else "ru")
+    return await call_next(request)
+
+
+from fastapi.exceptions import HTTPException as _HE  # noqa: E402
+from fastapi.responses import JSONResponse  # noqa: E402
+
+
+@api.exception_handler(_HE)
+async def translated_errors(request, exc: _HE):
+    detail = exc.detail
+    if isinstance(detail, str) and not request.url.path.startswith("/api/admin"):
+        detail = t(detail)
+    elif isinstance(detail, dict) and "message" in detail:
+        detail = {**detail, "message": t(detail["message"])}
+    return JSONResponse({"detail": detail}, status_code=exc.status_code, headers=getattr(exc, "headers", None))
 bot = None  # выставляется из main.py
 log = logging.getLogger("toncry")
 
@@ -29,6 +54,9 @@ def is_admin(tg) -> bool:
 def load(tg):
     name = tg.get("first_name", "") or tg.get("username", "")
     user, _ = db.get_or_create(tg["id"], name, username=tg.get("username"))
+    if user.get("lang") != i18n.lang_var.get():  # запоминаем язык — на нём пишет бот
+        db.update(user["id"], lang=i18n.lang_var.get())
+        user["lang"] = i18n.lang_var.get()
     if user.get("banned") and not is_admin(tg):
         raise HTTPException(403, {"banned": True, "support": settings.support(),
                                   "message": "Аккаунт заблокирован"})
@@ -66,7 +94,7 @@ def missions(tg=Depends(current_user)):
     user = load(tg)
     done = db.mission_done_ids(user["id"])
     return {"missions": [
-        {"id": "daily", "title": "Ежедневный бонус", "reward": DAILY_BONUS,
+        {"id": "daily", "title": t("Ежедневный бонус"), "reward": DAILY_BONUS,
          "done": time.time() - user["last_daily"] < 86400},
         *[{"id": f"m{m['id']}", "title": m["title"], "reward": m["reward"], "url": m["url"],
            "done": m["id"] in done} for m in db.missions_list()],
@@ -205,7 +233,10 @@ async def ton_paid(order):
         err = None
     else:
         err = game.apply_item(uid, order["item"], paid_ton=amount)
-    text = f"⚠️ {err}" if err else f"✅ Оплата {amount:g} TON получена — «{title}»."
+    from .bot import lang_of
+    lg = lang_of(uid)
+    text = f"⚠️ {t(err, lg)}" if err else L(lg, f"✅ Оплата {amount:g} TON получена — «{title}».",
+                                              f"✅ Payment of {amount:g} TON received — “{t(title, 'en')}”.")
     try:
         await bot.send_message(uid, text)
     except Exception:
@@ -235,7 +266,7 @@ def ton_order(body: InvoiceIn, tg=Depends(current_user)):
     oid = db.ton_order_create(user["id"], item, nano, comment)
     wallet = settings.ton_wallet()
     return {"id": oid, "address": wallet, "amount": nano / ton.NANO, "nano": nano, "comment": comment,
-            "title": game.item_title(item), "payload": ton.comment_payload(comment),
+            "title": t(game.item_title(item)), "payload": ton.comment_payload(comment),
             "bot": getattr(api.state, "bot_username", ""), **ton.transfer_links(wallet, nano, comment)}
 
 
@@ -315,7 +346,10 @@ async def a_grant(uid: int, body: GrantIn, _=Depends(admin)):
         game.apply_item(uid, body.item)
     if body.notify:
         try:
-            await bot.send_message(uid, f"🎁 Вам выдано: «{game.item_title(body.item)}»")
+            from .bot import lang_of
+            lg = lang_of(uid)
+            await bot.send_message(uid, L(lg, f"🎁 Вам выдано: «{game.item_title(body.item)}»",
+                                          f"🎁 You received: “{t(game.item_title(body.item), 'en')}”"))
         except Exception:
             pass
     u = db.get(uid)
@@ -373,25 +407,63 @@ def a_withdrawals(status: str = "pending", _=Depends(admin)):
 class WdAction(BaseModel):
     action: str          # paid | rejected
     tx: str | None = None
+    reason: str | None = None        # комментарий при отклонении — уходит игроку
+    save_template: bool = False
 
 
 @api.post("/api/admin/withdrawals/{wid}")
 async def a_wd_action(wid: int, body: WdAction, _=Depends(admin)):
     if body.action not in ("paid", "rejected"):
         raise HTTPException(400, "Неизвестное действие")
-    w = db.finish_withdrawal(wid, body.action, body.tx)
+    reason = (body.reason or "").strip()[:1000] or None
+    w = db.finish_withdrawal(wid, body.action, body.tx, reason if body.action == "rejected" else None)
     if not w:
         raise HTTPException(400, "Заявка не найдена или уже обработана")
-    text = (f"✅ Вывод {w['amount']:g} {settings.coin()} отправлен на ваш TON-кошелёк."
-            if body.action == "paid" else
-            f"↩️ Заявка на вывод {w['amount']:g} {settings.coin()} отклонена, монеты возвращены на баланс.")
-    if body.action == "paid" and body.tx:
-        text += f"\nТранзакция: https://tonviewer.com/transaction/{body.tx}"
+    if reason and body.save_template:
+        tpl = settings.reject_templates()
+        if reason not in tpl:
+            db.set_setting("reject_templates", json.dumps(([reason] + tpl)[:30], ensure_ascii=False))
+    from .bot import lang_of
+    lg, coin, amt = lang_of(w["user_id"]), settings.coin(), w["amount"]
+    if body.action == "paid":
+        text = L(lg, f"✅ Вывод {amt:g} {coin} отправлен на ваш TON-кошелёк.", f"✅ Your withdrawal of {amt:g} {coin} has been sent to your TON wallet.")
+        if body.tx:
+            text += L(lg, "\nТранзакция: ", "\nTransaction: ") + f"https://tonviewer.com/transaction/{body.tx}"
+    else:
+        text = L(lg, f"↩️ Заявка на вывод {amt:g} {coin} отклонена, средства возвращены на баланс.",
+                 f"↩️ Your withdrawal request for {amt:g} {coin} was declined, funds returned to your balance.")
+        if reason:
+            text += L(lg, "\n\n<b>Причина:</b> ", "\n\n<b>Reason:</b> ") + html.escape(reason)
     try:
         await bot.send_message(w["user_id"], text)
     except Exception:
         pass
     return {"ok": True}
+
+
+@api.get("/api/admin/reject_templates")
+def a_tpl_list(_=Depends(admin)):
+    return {"templates": settings.reject_templates()}
+
+
+class TplIn(BaseModel):
+    text: str
+
+
+@api.post("/api/admin/reject_templates")
+def a_tpl_add(body: TplIn, _=Depends(admin)):
+    tx = body.text.strip()[:1000]
+    if not tx:
+        raise HTTPException(400, "Пустой шаблон")
+    tpl = [x for x in settings.reject_templates() if x != tx]
+    db.set_setting("reject_templates", json.dumps(([tx] + tpl)[:30], ensure_ascii=False))
+    return {"templates": settings.reject_templates()}
+
+
+@api.post("/api/admin/reject_templates/delete")
+def a_tpl_del(body: TplIn, _=Depends(admin)):
+    db.set_setting("reject_templates", json.dumps([x for x in settings.reject_templates() if x != body.text], ensure_ascii=False))
+    return {"templates": settings.reject_templates()}
 
 
 @api.get("/api/admin/settings")
@@ -402,6 +474,7 @@ def a_get_settings(_=Depends(admin)):
 class SettingsIn(BaseModel):
     coin_name: str | None = None
     welcome_text: str | None = None
+    welcome_text_en: str | None = None
     min_withdraw: float | None = None
     withdraw_enabled: bool | None = None
     support_username: str | None = None
@@ -424,6 +497,10 @@ def a_set_settings(body: SettingsIn, _=Depends(admin)):
         if not body.welcome_text.strip() or len(body.welcome_text) > 3500:
             raise HTTPException(400, "Текст приветствия: от 1 до 3500 символов")
         db.set_setting("welcome_text", body.welcome_text)
+    if body.welcome_text_en is not None:
+        if len(body.welcome_text_en) > 3500:
+            raise HTTPException(400, "Текст приветствия: от 1 до 3500 символов")
+        db.set_setting("welcome_text_en", body.welcome_text_en)
     if body.min_withdraw is not None:
         db.set_setting("min_withdraw", max(0.0001, body.min_withdraw))
     if body.withdraw_enabled is not None:

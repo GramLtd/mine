@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>TonCry</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="/static/i18n.js?v=1"></script>
 <script async src="https://unpkg.com/@tonconnect/ui@2.0.9/dist/tonconnect-ui.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -114,8 +115,50 @@ input,textarea{font:inherit;color:var(--label)}
 #tour .tip .row{display:flex;justify-content:space-between;align-items:center;margin-top:12px}
 #tour .tip .row span{font-size:13px;color:var(--label3)}
 .paylist .cell[disabled]{opacity:.4;pointer-events:none}
-.swatch{width:32px;height:32px;border-radius:50%;flex:none;box-shadow:inset 0 1px 3px rgba(255,255,255,.4),0 0 0 .5px var(--sep)}
+.swatch{position:relative;overflow:hidden;width:32px;height:32px;border-radius:50%;flex:none;box-shadow:inset 0 1px 3px rgba(255,255,255,.4),0 0 0 .5px var(--sep)}
 @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+/* ---------- анимированные эффекты скинов ---------- */
+.fan .fx{position:absolute;inset:0;border-radius:50%;pointer-events:none;overflow:hidden;display:none}
+.fan .fx i,.fan .fx b{position:absolute;inset:0;border-radius:50%}
+.fan[data-skin^="skin_"] .fx{display:block}
+.fan.off .fx i,.fan.off .fx b{animation-play-state:paused}
+/* золото: блик пробегает по корпусу + искры */
+.fan[data-skin="skin_gold"] .fx i{inset:-30%;border-radius:0;background:linear-gradient(105deg,transparent 40%,rgba(255,250,220,.75) 50%,transparent 60%);
+  animation:fxSweep 3.2s cubic-bezier(.4,0,.2,1) infinite}
+.fan[data-skin="skin_gold"] .fx b{background:
+  radial-gradient(circle at 22% 30%,#fff 0 1.2%,transparent 1.8%),radial-gradient(circle at 74% 22%,#fff 0 .9%,transparent 1.5%),
+  radial-gradient(circle at 80% 68%,#fff 0 1.1%,transparent 1.7%),radial-gradient(circle at 30% 78%,#fff 0 .8%,transparent 1.4%),
+  radial-gradient(circle at 52% 12%,#fff 0 .7%,transparent 1.3%);animation:fxTwinkle 1.8s ease-in-out infinite}
+/* изумруд: пульсирующее свечение изнутри */
+.fan[data-skin="skin_emerald"] .fx i{background:radial-gradient(circle closest-side,rgba(140,255,180,.6) 0%,rgba(48,209,88,.3) 40%,transparent 75%);
+  animation:fxPulse 2.4s ease-in-out infinite}
+.fan[data-skin="skin_emerald"] .fx b{background:conic-gradient(from 0deg,transparent 0 70%,rgba(160,255,200,.55) 85%,transparent 100%);
+  -webkit-mask:radial-gradient(circle closest-side,transparent 88%,#000 89% 97%,transparent 98%);mask:radial-gradient(circle closest-side,transparent 88%,#000 89% 97%,transparent 98%);
+  animation:spin 3s linear infinite}
+/* рубин: огненное мерцание по ободу */
+.fan[data-skin="skin_crimson"] .fx i{background:conic-gradient(from 0deg,#ff2d55,#ff9f0a,#ff375f,#ffd60a,#ff2d55,#ff9f0a,#ff2d55);
+  -webkit-mask:radial-gradient(circle closest-side,transparent 86%,#000 90% 99%,transparent 100%);mask:radial-gradient(circle closest-side,transparent 86%,#000 90% 99%,transparent 100%);
+  filter:blur(1.5px);animation:spin 2.2s linear infinite,fxFlicker .35s steps(2) infinite}
+.fan[data-skin="skin_crimson"] .fx b{background:radial-gradient(circle closest-side,transparent 60%,rgba(255,90,40,.45) 85%,transparent 100%);animation:fxPulse 1.1s ease-in-out infinite}
+/* лёд: мерцающие снежинки и морозная дымка */
+.fan[data-skin="skin_ice"] .fx i{inset:-10%;background:
+  radial-gradient(circle at 15% 25%,#fff 0 .9%,transparent 1.4%),radial-gradient(circle at 70% 15%,#fff 0 .7%,transparent 1.2%),
+  radial-gradient(circle at 85% 55%,#fff 0 1%,transparent 1.5%),radial-gradient(circle at 40% 85%,#fff 0 .8%,transparent 1.3%),
+  radial-gradient(circle at 25% 60%,#fff 0 .6%,transparent 1.1%),radial-gradient(circle at 60% 45%,#fff 0 .5%,transparent 1%);
+  animation:spin 14s linear infinite reverse,fxTwinkle 2.6s ease-in-out infinite}
+.fan[data-skin="skin_ice"] .fx b{background:radial-gradient(circle at 30% 25%,rgba(255,255,255,.45),transparent 55%);animation:fxPulse 3.5s ease-in-out infinite}
+/* карбон: неоновое кольцо бежит по ободу */
+.fan[data-skin="skin_black"] .fx i{background:conic-gradient(from 0deg,transparent 0 55%,#5E5CE6 72%,#64D2FF 86%,#BF5AF2 95%,transparent 100%);
+  -webkit-mask:radial-gradient(circle closest-side,transparent 89%,#000 91% 98%,transparent 99%);mask:radial-gradient(circle closest-side,transparent 89%,#000 91% 98%,transparent 99%);
+  animation:spin 1.8s linear infinite}
+.fan[data-skin="skin_black"] .fx b{background:radial-gradient(circle closest-side,rgba(100,210,255,.22),transparent 60%);animation:fxPulse 1.8s ease-in-out infinite}
+@keyframes fxSweep{0%{transform:translateX(-60%)}60%,100%{transform:translateX(60%)}}
+@keyframes fxTwinkle{0%,100%{opacity:.25}50%{opacity:1}}
+@keyframes fxPulse{0%,100%{opacity:.35;transform:scale(.94)}50%{opacity:1;transform:scale(1.04)}}
+@keyframes fxFlicker{0%{opacity:.85}100%{opacity:1}}
+/* превью в магазине — лёгкий блик */
+.swatch.fxs::after{content:"";position:absolute;inset:-20%;background:linear-gradient(105deg,transparent 40%,rgba(255,255,255,.7) 50%,transparent 60%);animation:fxSweep 2.6s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){.fan .fx i,.fan .fx b,.swatch.fxs::after{animation:none}}
 
 .mined{text-align:center;font-size:36px;font-weight:700;letter-spacing:-.04em;margin-top:6px}
 .mined span{color:var(--label2);font-size:20px;font-weight:600;letter-spacing:-.02em}
@@ -247,7 +290,7 @@ textarea{width:100%;min-height:140px;border:0;outline:none;background:var(--bg2)
 <!-- ============ ГЛАВНАЯ ============ -->
 <section id="home" class="page on">
   <div class="balance">
-    <div class="top"><div><small>Баланс</small><b class="num" id="bal">0.0000<span>HASH</span></b></div><div style="display:flex;gap:6px;align-items:center"><div class="chip" id="lvlchip">—</div><button class="help" id="help" aria-label="Обучение">?</button></div></div>
+    <div class="top"><div><small>Баланс</small><b class="num" id="bal">0.0000<span>HASH</span></b></div><div style="display:flex;gap:6px;align-items:center"><div class="chip" id="lvlchip">—</div><button class="help" id="langbtn" style="font-size:11px;width:auto;padding:0 9px">EN</button><button class="help" id="help" aria-label="Обучение">?</button></div></div>
     <div class="row"><button class="pill" id="topopen" style="background:var(--blue);color:#fff">Пополнить</button><button class="pill" id="wdopen">Вывести</button><button class="pill" id="chkopen" style="flex:.8">Чек</button></div>
   </div>
 
@@ -286,6 +329,7 @@ textarea{width:100%;min-height:140px;border:0;outline:none;background:var(--bg2)
         <circle cx="100" cy="100" r="99" fill="none" stroke="rgba(255,255,255,.35)" stroke-width=".8"/>
         <circle cx="100" cy="100" r="93" fill="none" stroke="rgba(0,0,0,.5)" stroke-width="1.5"/>
       </svg>
+      <div class="fx"><i></i><b></b></div>
     </div>
   </div>
 
@@ -299,7 +343,7 @@ textarea{width:100%;min-height:140px;border:0;outline:none;background:var(--bg2)
     <ol class="steps">
       <li><i>1</i><div><b>Арендуйте сервер</b><small>В магазине — выберите любой тариф на 30 дней</small></div></li>
       <li><i>2</i><div><b>Сервер майнит сам</b><small>Круглосуточно, даже когда приложение закрыто</small></div></li>
-      <li><i>3</i><div><b>Забирайте раз в сутки</b><small>Хранилище копит монеты <span class="st-h">24</span> ч — затем нажмите «Забрать», чтобы майнинг продолжился. Бот напомнит</small></div></li>
+      <li><i>3</i><div><b>Забирайте раз в сутки</b><small>Хранилище копит монеты сутки — затем нажмите «Забрать», чтобы майнинг продолжился. Бот напомнит</small></div></li>
       <li><i>4</i><div><b>Выводите TON</b><small>Вывод на ваш TON-кошелёк</small></div></li>
     </ol>
     <div style="padding:0 16px 14px"><button class="btn primary" id="act-go" style="height:46px;width:100%">Выбрать сервер</button></div>
@@ -446,7 +490,7 @@ textarea{width:100%;min-height:140px;border:0;outline:none;background:var(--bg2)
     <button class="cell noicon" data-copy="address"><div class="tx"><b>Адрес</b><small id="ton-addr" style="word-break:break-all;font-family:ui-monospace,Menlo,monospace"></small></div></button>
     <button class="cell noicon" data-copy="comment"><div class="tx"><b>Комментарий</b><small id="ton-comment" style="font-family:ui-monospace,Menlo,monospace"></small></div></button>
   </div>
-  <p class="footnote">Оплатите через TON Connect — сумма и комментарий подставятся сами. Или переведите вручную: обязательно укажите комментарий — по нему мы найдём платёж. Нажмите на строку, чтобы скопировать. Буст включится автоматически в течение минуты после поступления.</p>
+  <p class="footnote">Оплатите через TON Connect — сумма и комментарий подставятся сами. Или переведите вручную: обязательно укажите комментарий — по нему мы найдём платёж. Нажмите на строку, чтобы скопировать. Покупка активируется автоматически в течение минуты после поступления.</p>
   <button class="btn primary" id="ton-pay" style="width:100%;margin-top:16px">Оплатить через кошелёк</button>
   <button class="btn" id="ton-open" style="width:100%;margin-top:10px">Открыть по ссылке</button>
   <p class="footnote" id="ton-wallet" style="text-align:center"></p>
@@ -497,7 +541,7 @@ let hudT;
 function hud(t, ok = true) { const h = $('hud'); h.textContent = t; h.classList.add('on'); clearTimeout(hudT); hudT = setTimeout(() => h.classList.remove('on'), 1800); haptic('notificationOccurred', ok ? 'success' : 'error'); }
 
 async function api(path, method = 'GET', body) {
-  const r = await fetch(path, { method, headers: { 'X-Init-Data': tg.initData, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+  const r = await fetch(path, { method, headers: { 'X-Init-Data': tg.initData, 'X-Lang': window.LANG || 'ru', 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
   const j = await r.json().catch(() => ({}));
   if (r.status === 403 && j.detail?.banned) { showBanned(j.detail.support); throw new Error('Аккаунт заблокирован'); }
   if (!r.ok) throw new Error(typeof j.detail === 'string' ? j.detail : 'Ошибка сети');
@@ -541,7 +585,7 @@ function render(s) {
   const n = s.active_count;
   $('lvlchip').textContent = s.boost ? `×${s.boost.mult} буст` : n ? `${n} ${plural(n, 'сервер', 'сервера', 'серверов')}` : 'Нет серверов';
   $('lvlchip').className = 'chip' + (s.boost ? ' boost' : '');
-  $('rate').textContent = n ? `${Math.round(s.hashrate).toLocaleString('ru')} GH/s` + (s.fee ? ` · комиссия ${Math.round(s.fee * 100)}%` : '') : 'Майнинг не запущен';
+  $('rate').textContent = n ? `${Math.round(s.hashrate).toLocaleString(window.LANG === 'en' ? 'en' : 'ru')} GH/s` + (s.fee ? ` · комиссия ${Math.round(s.fee * 100)}%` : '') : 'Майнинг не запущен';
   const cheapest = s.servers.filter(x => x.stock > 0).sort((a, b) => a.price - b.price)[0];
   $('upginfo').textContent = n ? `Аренда на ${s.rent_days} дней · продлевайте во вкладке «Серверы»` : '';
   $('act-box').hidden = !!n || s.my_servers.length > 0 && false; $('act-box').hidden = !!n;
@@ -550,7 +594,6 @@ function render(s) {
   $('claim').disabled = !n && !(s.pending > 0);
   document.querySelector('.fan').classList.toggle('off', !n);
   renderMyServers(s);
-  document.querySelectorAll('.st-h').forEach(x => x.textContent = s.storage_hours);
   if (!s.tutorial_done && !tourSeen()) setTimeout(() => startTour(), 400);
   document.querySelector('.fan').dataset.skin = s.skin || '';
   document.querySelector('.fan').style.setProperty('--spin', (1.6 / (s.boost?.mult || 1)) + 's');
@@ -611,7 +654,7 @@ $('pay-star').onclick = () => { paySheet(false); buy(PAY, $('pay-star')); };
 /* ---------- мои серверы ---------- */
 function renderMyServers(s) {
   const act = s.my_servers.filter(x => x.active);
-  $('ms-total').textContent = `${Math.round(s.hashrate).toLocaleString('ru')} GH/s`;
+  $('ms-total').textContent = `${Math.round(s.hashrate).toLocaleString(window.LANG === 'en' ? 'en' : 'ru')} GH/s`;
   $('ms-count').textContent = act.length ? `${act.length} ${plural(act.length, 'сервер работает', 'сервера работают', 'серверов работают')}` : 'Нет работающих серверов';
   $('fee-s').textContent = s.fee ? `${Math.round(s.fee * 100)}% с майнинга · отключается навсегда` : 'Отключена навсегда';
   const fa = $('fee-act'); fa.innerHTML = '';
@@ -624,12 +667,12 @@ function renderMyServers(s) {
     const left = Math.max(0, m.expires - now), days = Math.ceil(left / 86400);
     const card = el('div', { class: 'srv', style: m.active ? '' : 'opacity:.6' });
     card.append(el('div', { class: 'hd' }, icon('fan', m.active ? 'var(--indigo)' : 'var(--label3)'),
-      el('div', { class: 'tx' }, el('b', {}, m.spec), el('small', {}, `${m.hashrate.toLocaleString('ru')} GH/s · ≈ ${fmt(m.daily_income * (1 - s.fee), 2)} TON/день`)),
+      el('div', { class: 'tx' }, el('b', {}, m.spec), el('small', {}, `${m.hashrate.toLocaleString(window.LANG === 'en' ? 'en' : 'ru')} GH/s · ≈ ${fmt(m.daily_income * (1 - s.fee), 2)} TON/день`)),
       el('span', { class: 'val', style: m.active ? (days <= 3 ? 'color:var(--orange)' : '') : 'color:var(--red)' },
         m.active ? (left < 86400 ? `< 1 дня` : `${days} ${plural(days, 'день', 'дня', 'дней')}`) : 'Истёк')));
     const bar = el('div', { class: 'bar' }, el('i', { style: `width:${Math.min(100, left / (s.rent_days * 86400) * 100)}%` }));
     const bt = el('div', { class: 'bt' });
-    const up = m.upgrade && m.active ? el('div', { class: 'up' }, `Улучшение → ${m.upgrade.spec} · ${m.upgrade.hashrate.toLocaleString('ru')} GH/s`) : '';
+    const up = m.upgrade && m.active ? el('div', { class: 'up' }, `Улучшение → ${m.upgrade.spec} · ${m.upgrade.hashrate.toLocaleString(window.LANG === 'en' ? 'en' : 'ru')} GH/s`) : '';
     if (m.upgrade && m.active) {
       const u = el('button', { class: 'pill' }, `Улучшить · ${m.upgrade.price} TON`);
       u.onclick = () => pay({ id: `upg:${m.id}`, title: `Улучшить до ${m.upgrade.spec}`, ton: m.upgrade.price }); bt.append(u);
@@ -689,7 +732,8 @@ async function loadWdHist() {
   withdrawals.forEach(w => {
     const [t, c] = WD_ST[w.status] || [w.status, 'var(--label3)'];
     box.append(el('div', { class: 'cell noicon' }, el('div', { class: 'tx' }, el('b', { class: 'num' }, `${fmt(w.amount, 4)} ${S.coin}`),
-      el('small', { style: 'font-family:ui-monospace,Menlo,monospace' }, w.address.slice(0, 6) + '…' + w.address.slice(-6))),
+      el('small', { style: 'font-family:ui-monospace,Menlo,monospace' }, w.address.slice(0, 6) + '…' + w.address.slice(-6)),
+      w.status === 'rejected' && w.reason ? el('small', { style: 'white-space:normal;color:var(--red)' }, `${tr('Причина')}: ${w.reason}`) : ''),
       el('span', { class: 'val', style: `color:${c};font-weight:600` }, t)));
   });
 }
@@ -708,7 +752,7 @@ function renderShop(s) {
     const out = sv.stock <= 0;
     const tx = el('div', { class: 'tx' }, el('b', {}, sv.spec),
       el('small', { style: 'display:block;color:var(--green)' }, `≈ ${fmt(sv.daily_income * (1 - s.fee), 2)} TON в день`),
-      el('small', { style: 'display:block' }, `${sv.hashrate.toLocaleString('ru')} GH/s · `,
+      el('small', { style: 'display:block' }, `${sv.hashrate.toLocaleString(window.LANG === 'en' ? 'en' : 'ru')} GH/s · `,
         el('span', { style: out ? 'color:var(--red)' : sv.stock < 10 ? 'color:var(--orange)' : '' }, out ? 'нет в наличии' : `осталось ${sv.stock} шт`)));
     tx.firstChild.style.whiteSpace = 'normal';
     let act;
@@ -727,7 +771,7 @@ function renderShop(s) {
   s.shop.forEach(it => {
     let lead, action;
     if (it.cat === 'skin') {
-      lead = el('div', { class: 'swatch', style: `background:${SKIN_BG[it.id]}` });
+      lead = el('div', { class: 'swatch fxs', style: `background:${SKIN_BG[it.id]}` });
       if (s.skins.includes(it.id)) { action = el('button', { class: 'pill', disabled: s.skin === it.id ? '' : false }, s.skin === it.id ? 'Надет' : 'Надеть'); action.onclick = () => wearSkin(it.id); }
       else action = payBtns(it);
     } else {
@@ -828,7 +872,7 @@ async function loadFriends() {
   r.friends.forEach(f => box.append(el('div', { class: 'cell' }, icon('person', 'var(--label3)'),
     el('div', { class: 'tx' }, el('b', {}, f.name || 'Игрок')), el('span', { class: 'val' }, `${f.servers} ${plural(f.servers, 'сервер', 'сервера', 'серверов')}`))));
 }
-$('invite').onclick = () => tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent('Присоединяйся к TonCry')}`);
+$('invite').onclick = () => tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(tr('Присоединяйся к TonCry'))}`);
 $('copy').onclick = () => navigator.clipboard.writeText(link).then(() => hud('Ссылка скопирована'));
 
 /* ---------- миссии ---------- */
@@ -940,6 +984,8 @@ function endTour(toShop) {
 $('tour-next').onclick = $('tip-next').onclick = nextStep;
 $('tour-skip').onclick = () => endTour(false);
 $('help').onclick = () => startTour();
+$('langbtn').textContent = window.LANG === 'en' ? 'RU' : 'EN';
+$('langbtn').onclick = () => window.setLang(window.LANG === 'en' ? 'ru' : 'en');
 
 /* ---------- навигация ---------- */
 function bindTab(b) { b.onclick = () => {
