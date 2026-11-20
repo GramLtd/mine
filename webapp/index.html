@@ -45,8 +45,10 @@ input,textarea{font:inherit;color:var(--label)}
 @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 
 /* ---------- home ---------- */
-.balance{background:var(--bg2);border-radius:var(--r);padding:18px 20px;box-shadow:var(--shadow);
-  display:flex;align-items:center;justify-content:space-between}
+.balance{background:var(--bg2);border-radius:var(--r);padding:16px 18px;box-shadow:var(--shadow)}
+.balance .top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.balance .row{display:flex;gap:8px;margin-top:12px}
+.balance .row .pill{flex:1;height:36px}
 .balance small{display:block;color:var(--label2);font-size:13px;font-weight:500;margin-bottom:2px}
 .balance b{font-size:28px;font-weight:700;letter-spacing:-.03em}
 .balance b span{font-size:17px;color:var(--label2);font-weight:600;margin-left:4px}
@@ -58,16 +60,28 @@ input,textarea{font:inherit;color:var(--label)}
 .stage svg{position:absolute;inset:0;width:100%;height:100%}
 .ring-bg{stroke:var(--fill)}
 .ring{transition:stroke-dashoffset .6s cubic-bezier(.2,.8,.2,1)}
-.fan{position:absolute;inset:9%;border-radius:50%;--b1:#D9C2FF;--b2:#8A4DFF;--b3:#3D119E;--rim:#6B2BE0;--hub:#4A16B8;
-  filter:drop-shadow(0 18px 40px color-mix(in srgb,var(--b2) 55%,transparent))}
-.fan[data-skin="skin_gold"]{--b1:#FFF0BF;--b2:#F5B83D;--b3:#7A4A06;--rim:#C98A16;--hub:#8F5A0A}
-.fan[data-skin="skin_emerald"]{--b1:#C8F8DA;--b2:#30D158;--b3:#0B5A26;--rim:#1F9E45;--hub:#0E6B2D}
-.fan[data-skin="skin_crimson"]{--b1:#FFC9D3;--b2:#FF375F;--b3:#7A0A20;--rim:#D01C45;--hub:#8C0F28}
-.fan[data-skin="skin_ice"]{--b1:#FFFFFF;--b2:#7FD4FF;--b3:#1A6E9E;--rim:#4FB6EC;--hub:#1F7FB5}
-.fan[data-skin="skin_black"]{--b1:#9A9AA0;--b2:#3A3A3E;--b3:#0A0A0B;--rim:#2C2C2E;--hub:#1C1C1E}
-.fan svg{position:absolute;inset:0;width:100%;height:100%}
-.fan .rotor{transform-origin:100px 100px;animation:spin var(--spin,1.4s) linear infinite}
+.fan{position:absolute;inset:9%;border-radius:50%;--b1:#E4D2FF;--b2:#8B4BFF;--b3:#3A0FA0;--rim:#7A3BF0;--hub:#4A16B8;
+  box-shadow:0 18px 50px -12px var(--b2)}
+.fan[data-skin="skin_gold"]{--b1:#FFF0BF;--b2:#F5B83D;--b3:#6E4205;--rim:#C98A16;--hub:#8F5A0A}
+.fan[data-skin="skin_emerald"]{--b1:#C8F8DA;--b2:#30D158;--b3:#0B4F22;--rim:#1F9E45;--hub:#0E6B2D}
+.fan[data-skin="skin_crimson"]{--b1:#FFC9D3;--b2:#FF375F;--b3:#6E0A1D;--rim:#D01C45;--hub:#8C0F28}
+.fan[data-skin="skin_ice"]{--b1:#FFFFFF;--b2:#7FD4FF;--b3:#185F88;--rim:#4FB6EC;--hub:#1F7FB5}
+.fan[data-skin="skin_black"]{--b1:#A5A5AB;--b2:#3A3A3E;--b3:#08080A;--rim:#2C2C2E;--hub:#1C1C1E}
+.fan svg,.fan .rotor{position:absolute;inset:0;width:100%;height:100%}
+.fan .rotor{will-change:transform;transform:translateZ(0);animation:spin var(--spin,1.4s) linear infinite;backface-visibility:hidden}
 .fan.off .rotor{animation-play-state:paused}
+.srv{background:var(--bg2);border-radius:var(--r);padding:14px 16px;margin-bottom:10px;box-shadow:var(--shadow)}
+.srv .hd{display:flex;align-items:center;gap:12px}
+.srv .hd .tx{flex:1;min-width:0}
+.srv .hd .tx b{display:block;font-size:16px;font-weight:600}.srv .hd .tx small{color:var(--label2);font-size:13px}
+.srv .up{font-size:13px;color:var(--label2);margin-bottom:10px}
+.srv .bar{height:5px;border-radius:3px;background:var(--fill);margin:12px 0 10px;overflow:hidden}
+.srv .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--indigo),var(--pink));border-radius:3px}
+.srv .bt{display:flex;gap:8px}
+.srv .bt .pill{flex:1;height:36px;font-size:14px}
+.old{color:var(--label3);text-decoration:line-through;font-weight:500;margin-right:4px;font-size:13px}
+.paylist .cell{cursor:pointer}
+.paylist .cell[disabled]{opacity:.4;pointer-events:none}
 .swatch{width:32px;height:32px;border-radius:50%;flex:none;box-shadow:inset 0 1px 3px rgba(255,255,255,.4),0 0 0 .5px var(--sep)}
 @keyframes spin{to{transform:rotate(360deg)}}
 
@@ -90,8 +104,8 @@ input,textarea{font:inherit;color:var(--label)}
 .cell{display:flex;align-items:center;gap:12px;padding:11px 16px;min-height:52px;position:relative;width:100%;text-align:left}
 .cell+.cell::before{content:"";position:absolute;top:0;left:60px;right:0;height:.5px;background:var(--sep)}
 .cell.noicon+.cell.noicon::before{left:16px}
-.cell .ic{width:32px;height:32px;border-radius:8px;display:grid;place-items:center;flex:none;color:#fff}
-.cell .ic svg{width:19px;height:19px}
+.cell .ic,.srv .ic{width:32px;height:32px;border-radius:8px;display:grid;place-items:center;flex:none;color:#fff}
+.cell .ic svg,.srv .ic svg{width:19px;height:19px}
 .cell .tx{flex:1;min-width:0}
 .cell .tx b{display:block;font-weight:500;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cell .tx small{display:block;color:var(--label2);font-size:13px;margin-top:1px}
@@ -188,11 +202,8 @@ textarea{width:100%;min-height:140px;border:0;outline:none;background:var(--bg2)
 <!-- ============ ГЛАВНАЯ ============ -->
 <section id="home" class="page on">
   <div class="balance">
-    <div><small>Баланс</small><b class="num" id="bal">0.0000<span>HASH</span></b></div>
-    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
-      <div class="chip" id="lvlchip">Сервер 1</div>
-      <div style="display:flex;gap:6px"><button class="pill sm" id="topopen" style="background:var(--blue);color:#fff">Пополнить</button><button class="pill sm" id="wdopen">Вывести</button></div>
-    </div>
+    <div class="top"><div><small>Баланс</small><b class="num" id="bal">0.0000<span>HASH</span></b></div><div class="chip" id="lvlchip">—</div></div>
+    <div class="row"><button class="pill" id="topopen" style="background:var(--blue);color:#fff">Пополнить</button><button class="pill" id="wdopen">Вывести</button></div>
   </div>
 
   <div class="stage">
@@ -205,20 +216,30 @@ textarea{width:100%;min-height:140px;border:0;outline:none;background:var(--bg2)
     <div class="fan">
       <svg viewBox="0 0 200 200">
         <defs>
-          <radialGradient id="fRim" cx=".35" cy=".3" r=".8"><stop offset="0" style="stop-color:var(--b1)"/><stop offset=".45" style="stop-color:var(--rim)"/><stop offset="1" style="stop-color:var(--b3)"/></radialGradient>
-          <radialGradient id="fHouse" cx=".5" cy=".5" r=".5"><stop offset=".2" style="stop-color:var(--b3)"/><stop offset="1" style="stop-color:var(--b3);stop-opacity:.75"/></radialGradient>
-          <linearGradient id="fBlade" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:var(--b1)"/><stop offset=".45" style="stop-color:var(--b2)"/><stop offset="1" style="stop-color:var(--b3)"/></linearGradient>
-          <radialGradient id="fHub" cx=".35" cy=".3" r=".9"><stop offset="0" style="stop-color:var(--b1)"/><stop offset=".5" style="stop-color:var(--b2)"/><stop offset="1" style="stop-color:var(--hub)"/></radialGradient>
+          <radialGradient id="fRim" cx=".3" cy=".25" r=".85"><stop offset="0" style="stop-color:var(--b1)"/><stop offset=".4" style="stop-color:var(--rim)"/><stop offset="1" style="stop-color:var(--b3)"/></radialGradient>
+          <radialGradient id="fHouse" cx=".5" cy=".5" r=".5"><stop offset=".25" style="stop-color:var(--b3)"/><stop offset=".9" style="stop-color:var(--hub)"/><stop offset="1" style="stop-color:var(--b3)"/></radialGradient>
         </defs>
-        <circle cx="100" cy="100" r="99" fill="url(#fRim)"/>
-        <circle cx="100" cy="100" r="92" fill="url(#fHouse)"/>
-        <circle cx="100" cy="100" r="92" fill="none" stroke="rgba(0,0,0,.45)" stroke-width="2"/>
-        <g class="rotor"><g id="blades" transform="translate(100 100) scale(.88) translate(-100 -100)"></g>
-          <circle cx="100" cy="100" r="24" fill="url(#fHub)" stroke="rgba(255,255,255,.55)" stroke-width="1.2"/>
-          <circle cx="100" cy="100" r="18" fill="none" stroke="rgba(0,0,0,.25)" stroke-width="1"/>
-        </g>
-        <path d="M90 92.5h20L100 110.5z M100 92.5v18" fill="none" stroke="#fff" stroke-width="2.4" stroke-linejoin="round" opacity=".95"/>
-        <circle cx="100" cy="100" r="98" fill="none" stroke="rgba(255,255,255,.35)" stroke-width=".8"/>
+        <circle cx="100" cy="100" r="100" fill="url(#fRim)"/>
+        <circle cx="100" cy="100" r="93" fill="url(#fHouse)"/>
+        <g id="struts" stroke="var(--b2)" stroke-opacity=".35" stroke-width="3"></g>
+      </svg>
+      <div class="rotor"><svg viewBox="0 0 200 200">
+        <defs>
+          <linearGradient id="fBlade" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:var(--b1)"/><stop offset=".35" style="stop-color:var(--b2)"/><stop offset="1" style="stop-color:var(--b3)"/></linearGradient>
+          <linearGradient id="fEdge" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity=".9"/><stop offset="1" stop-color="#fff" stop-opacity=".1"/></linearGradient>
+        </defs>
+        <g id="blades"></g>
+      </svg></div>
+      <svg viewBox="0 0 200 200">
+        <defs>
+          <radialGradient id="fHub" cx=".35" cy=".3" r=".9"><stop offset="0" style="stop-color:var(--b1)"/><stop offset=".45" style="stop-color:var(--b2)"/><stop offset="1" style="stop-color:var(--hub)"/></radialGradient>
+        </defs>
+        <circle cx="100" cy="100" r="25" fill="var(--b3)" opacity=".6"/>
+        <circle cx="100" cy="100" r="22" fill="url(#fHub)" stroke="rgba(255,255,255,.6)" stroke-width="1.2"/>
+        <circle cx="100" cy="100" r="16.5" fill="none" stroke="rgba(0,0,0,.25)" stroke-width="1"/>
+        <path d="M90.5 93h19L100 110z M100 93v17" fill="none" stroke="#fff" stroke-width="2.3" stroke-linejoin="round"/>
+        <circle cx="100" cy="100" r="99" fill="none" stroke="rgba(255,255,255,.35)" stroke-width=".8"/>
+        <circle cx="100" cy="100" r="93" fill="none" stroke="rgba(0,0,0,.5)" stroke-width="1.5"/>
       </svg>
     </div>
   </div>
@@ -228,18 +249,30 @@ textarea{width:100%;min-height:140px;border:0;outline:none;background:var(--bg2)
 
   <div class="group" id="act-box" hidden style="margin-top:14px">
     <div class="cell"><div class="ic" style="background:var(--green)"><svg><use href="#i-bolt"/></svg></div>
-      <div class="tx"><b>Запустите майнинг</b><small>Разовая оплата — сервер будет майнить всегда</small></div></div>
-    <div style="display:flex;gap:8px;padding:0 16px 14px">
-      <button class="btn primary" id="act-ton" style="height:46px"></button>
-      <button class="btn tinted" id="act-star" style="height:46px"></button>
-    </div>
+      <div class="tx"><b>Запустите майнинг</b><small id="act-sub"></small></div></div>
+    <div style="padding:0 16px 14px"><button class="btn primary" id="act-go" style="height:46px;width:100%">Выбрать сервер</button></div>
   </div>
 
   <div class="actions" id="main-actions">
     <button class="btn primary" id="claim"><svg><use href="#i-down"/></svg>Забрать</button>
-    <button class="btn tinted" id="upg"><svg><use href="#i-up"/></svg>Улучшить</button>
+    <button class="btn tinted" id="upg"><svg><use href="#i-fan"/></svg>Мои серверы</button>
   </div>
   <p class="footnote" id="upginfo" style="text-align:center;margin-top:12px"></p>
+</section>
+
+<!-- ============ МОИ СЕРВЕРЫ ============ -->
+<section id="myservers" class="page">
+  <h1 class="large-title">Мои серверы</h1>
+  <div class="group">
+    <div class="cell"><div class="ic" style="background:var(--indigo)"><svg><use href="#i-bolt"/></svg></div>
+      <div class="tx"><b id="ms-total">—</b><small id="ms-count"></small></div></div>
+    <div class="cell"><div class="ic" style="background:var(--orange)"><svg><use href="#i-gift"/></svg></div>
+      <div class="tx"><b id="fee-t">Комиссия сервиса</b><small id="fee-s"></small></div><span id="fee-act"></span></div>
+  </div>
+  <div class="caption">Аренда</div>
+  <div id="ms-list"></div>
+  <button class="btn tinted" id="ms-buy" style="width:100%;margin-top:4px">Арендовать ещё сервер</button>
+  <p class="footnote">Улучшение переводит сервер на тариф выше и не тратит склад. Срок аренды при улучшении сохраняется.</p>
 </section>
 
 <!-- ============ ДРУЗЬЯ ============ -->
@@ -269,15 +302,16 @@ textarea{width:100%;min-height:140px;border:0;outline:none;background:var(--bg2)
 <!-- ============ МАГАЗИН ============ -->
 <section id="shop" class="page">
   <h1 class="large-title">Магазин</h1>
-  <div class="caption">Серверы</div>
+  <div class="caption" id="s-srv-cap">Серверы</div>
   <div class="group" id="s-servers"></div>
+  <p class="footnote" id="s-srv-note"></p>
   <div class="caption">Бусты</div>
   <div class="group" id="s-boost"></div>
   <div class="caption">Хранилище</div>
   <div class="group" id="s-storage"></div>
   <div class="caption">Скины вентилятора</div>
   <div class="group" id="s-skin"></div>
-  <p class="footnote">Оплата Telegram Stars проходит внутри Telegram. Цены в TON списываются с баланса, если на нём хватает средств, иначе — оплата через кошелёк.</p>
+  <p class="footnote">Любую покупку можно оплатить с баланса, TON-кошельком или Telegram Stars.</p>
 </section>
 
 <div id="admin-root"></div>
@@ -312,6 +346,19 @@ textarea{width:100%;min-height:140px;border:0;outline:none;background:var(--bg2)
   <button class="btn primary" id="wd-send" style="width:100%;margin-top:16px">Создать заявку</button>
   <div class="caption">История</div>
   <div class="group" id="wd-hist"></div>
+</div>
+
+<!-- ============ СПОСОБ ОПЛАТЫ ============ -->
+<div class="scrim" id="pay-scrim"></div>
+<div class="sheet" id="pay-sheet">
+  <div class="grabber"></div>
+  <div class="sheet-head"><button id="pay-cancel">Закрыть</button><h3>Оплата</h3><span style="width:60px"></span></div>
+  <div class="caption" id="pay-title"></div>
+  <div class="group paylist">
+    <div class="cell" id="pay-bal"><div class="ic" style="background:var(--green)"><svg><use href="#i-bag"/></svg></div><div class="tx"><b>С баланса</b><small id="pay-bal-s"></small></div><span class="val num" id="pay-bal-v"></span></div>
+    <div class="cell" id="pay-ton"><div class="ic" style="background:#0098EA"><svg><use href="#i-paper"/></svg></div><div class="tx"><b>TON-кошелёк</b><small>Tonkeeper, Telegram Wallet и др.</small></div><span class="val num" id="pay-ton-v"></span></div>
+    <div class="cell" id="pay-star"><div class="ic" style="background:var(--orange)"><svg><use href="#i-star"/></svg></div><div class="tx"><b>Telegram Stars</b><small>Оплата внутри Telegram</small></div><span class="val num" id="pay-star-v"></span></div>
+  </div>
 </div>
 
 <!-- ============ ПОПОЛНЕНИЕ ============ -->
@@ -349,6 +396,7 @@ textarea{width:100%;min-height:140px;border:0;outline:none;background:var(--bg2)
 <!-- ============ ТАБ-БАР ============ -->
 <nav class="tabbar" id="tabbar">
   <button data-p="home" class="on"><svg><use href="#i-fan"/></svg>Майнинг</button>
+  <button data-p="myservers"><svg><use href="#i-bolt"/></svg>Серверы</button>
   <button data-p="friends"><svg><use href="#i-people"/></svg>Друзья</button>
   <button data-p="missions"><svg><use href="#i-target"/></svg>Миссии</button>
   <button data-p="shop"><svg><use href="#i-bag"/></svg>Магазин</button>
@@ -405,13 +453,22 @@ function showBanned(sup) {
 
 /* ---------- лопасти ---------- */
 const blades = $('blades');
-for (let i = 0; i < 11; i++) {
-  const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-  g.setAttribute('transform', `rotate(${i * 360 / 11} 100 100)`);
-  g.innerHTML = '<path d="M104 80 C108 56 126 26 152 22 C164 20 170 30 162 40 C146 58 132 76 120 96 Z" fill="rgba(0,0,0,.35)" transform="rotate(7 100 100)"/>'
-    + '<path d="M104 80 C108 56 126 26 152 22 C164 20 170 30 162 40 C146 58 132 76 120 96 Z" fill="url(#fBlade)" stroke="rgba(255,255,255,.55)" stroke-width=".9"/>'
-    + '<path d="M106 78 C110 56 128 28 152 25" fill="none" stroke="rgba(255,255,255,.7)" stroke-width="1.4" stroke-linecap="round"/>';
-  blades.appendChild(g);
+{
+  const P = (r, a) => { a *= Math.PI / 180; return `${(100 + r * Math.sin(a)).toFixed(2)} ${(100 - r * Math.cos(a)).toFixed(2)}`; };
+  // широкая изогнутая лопасть: передняя кромка, срез у обода, задняя кромка
+  const blade = `M${P(22, -4)} C${P(48, 0)} ${P(74, 18)} ${P(88, 44)} L${P(90, 58)} A90 90 0 0 1 ${P(89, 84)} C${P(70, 66)} ${P(44, 50)} ${P(22, 46)} A22 22 0 0 0 ${P(22, -4)}Z`;
+  const edge = `M${P(23, -2)} C${P(48, 2)} ${P(73, 20)} ${P(87, 45)}`;
+  const N = 9;
+  for (let i = 0; i < N; i++) {
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.setAttribute('transform', `rotate(${i * 360 / N} 100 100)`);
+    g.innerHTML = `<path d="${blade}" fill="#000" opacity=".35" transform="rotate(-6 100 100)"/>`
+      + `<path d="${blade}" fill="url(#fBlade)" stroke="var(--b1)" stroke-opacity=".5" stroke-width=".8"/>`
+      + `<path d="${edge}" fill="none" stroke="url(#fEdge)" stroke-width="2.2" stroke-linecap="round"/>`;
+    blades.appendChild(g);
+  }
+  const st = $('struts');
+  for (let i = 0; i < 6; i++) st.innerHTML += `<line x1="100" y1="100" x2="${P(92, i * 60 + 15).split(' ')[0]}" y2="${P(92, i * 60 + 15).split(' ')[1]}"/>`;
 }
 
 /* ---------- главная ---------- */
@@ -421,18 +478,19 @@ function render(s) {
   S = s; base = s.pending; t0 = performance.now();
   $('bal').innerHTML = ''; $('bal').append(fmt(s.balance), el('span', {}, s.coin));
   $('minedcoin').textContent = ' ' + s.coin;
-  $('lvlchip').textContent = s.boost ? `×${s.boost.mult} буст` : `Сервер ${s.level}`;
+  const n = s.active_count;
+  $('lvlchip').textContent = s.boost ? `×${s.boost.mult} буст` : n ? `${n} ${plural(n, 'сервер', 'сервера', 'серверов')}` : 'Нет серверов';
   $('lvlchip').className = 'chip' + (s.boost ? ' boost' : '');
-  $('rate').textContent = s.activated ? `${Math.round(s.hashrate).toLocaleString('ru')} GH/s · ${s.server.spec}` : `Майнинг не запущен · ${s.server.spec}`;
-  const n = s.next_level;
-  $('upg').disabled = !n || (s.balance < n.price && !s.ton_enabled);
-  const ns = s.servers[s.level];
-  $('upginfo').textContent = ns ? `Следующий сервер — ${ns.spec} · ${ns.hashrate} GH/s за ${ns.price} TON` : 'У вас максимальный сервер';
-  $('act-box').hidden = s.activated; $('claim').disabled = !s.activated;
-  $('act-ton').textContent = `Запустить · ${s.activation.ton} TON`;
-  $('act-star').innerHTML = TGSTAR; $('act-star').append(' ' + s.activation.stars);
+  $('rate').textContent = n ? `${Math.round(s.hashrate).toLocaleString('ru')} GH/s` + (s.fee ? ` · комиссия ${Math.round(s.fee * 100)}%` : '') : 'Майнинг не запущен';
+  const cheapest = s.servers.filter(x => x.stock > 0).sort((a, b) => a.price - b.price)[0];
+  $('upginfo').textContent = n ? `Аренда на ${s.rent_days} дней · продлевайте во вкладке «Серверы»` : '';
+  $('act-box').hidden = !!n || s.my_servers.length > 0 && false; $('act-box').hidden = !!n;
+  $('act-sub').textContent = s.first_discount && cheapest ? `Арендуйте сервер — первый со скидкой ${Math.round(s.first_discount * 100)}%, от ${cheapest.price} TON`
+    : cheapest ? `Арендуйте сервер от ${cheapest.price} TON` : 'Серверы закончились — пополнение в 12:00 МСК';
+  $('claim').disabled = !n && !(s.pending > 0);
+  document.querySelector('.fan').classList.toggle('off', !n);
+  renderMyServers(s);
   document.querySelector('.fan').dataset.skin = s.skin || '';
-  document.querySelector('.fan').classList.toggle('off', !s.activated);
   document.querySelector('.fan').style.setProperty('--spin', (1.6 / (s.boost?.mult || 1)) + 's');
   if (s.is_admin && !adminLoaded) loadAdminUI();
   renderShop(s);
@@ -450,24 +508,64 @@ $('claim').onclick = async () => {
   try { const r = await api('/api/claim', 'POST'); render(r); hud(`+${fmt(r.claimed, 6)} ${r.coin}`); }
   catch (e) { hud(e.message, false); }
 };
-async function upgradeBalance() {
-  try { render(await api('/api/upgrade', 'POST')); hud('Ферма улучшена'); haptic('impactOccurred', 'heavy'); }
-  catch (e) { hud(e.message, false); }
-}
-// хватает на балансе — улучшаем сразу, не хватает — сразу оплата в TON
-$('upg').onclick = () => {
-  const n = S?.next_level; if (!n) return;
-  if (S.balance >= n.price) return upgradeBalance();
-  if (!S.ton_enabled) return hud(S.is_admin ? 'TON выключен: укажите кошелёк в админке → Оплата в TON' : 'Недостаточно средств на балансе', false);
-  buyTon({ id: 'upgrade' }, $('upg'));
-};
-// запуск майнинга
-$('act-ton').onclick = () => S.balance >= S.activation.ton ? buyBalance({ id: 'activate', title: 'Майнинг запущен' }) : buyTon({ id: 'activate' }, $('act-ton'));
-$('act-star').onclick = () => buy({ id: 'activate', title: 'Майнинг' }, $('act-star'));
+$('upg').onclick = () => go('myservers');
+$('act-go').onclick = () => go('shop');
 async function buyBalance(it) {
   try { render(await api('/api/buy', 'POST', { item: it.id })); hud(`${it.title} — готово`); haptic('notificationOccurred', 'success'); }
   catch (e) { hud(e.message, false); }
 }
+const plural = (n, a, b, c) => { n = Math.abs(n) % 100; const d = n % 10; return n > 10 && n < 20 ? c : d === 1 ? a : d >= 2 && d <= 4 ? b : c; };
+const starsFor = ton => Math.max(1, Math.ceil(ton * S.star_rate - 1e-9));
+/* ---------- выбор способа оплаты ---------- */
+let PAY = null;
+function paySheet(on) { $('pay-scrim').classList.toggle('on', on); $('pay-sheet').classList.toggle('on', on); }
+$('pay-scrim').onclick = $('pay-cancel').onclick = () => paySheet(false);
+function pay(it) { // it: {id, title, ton, stars?}
+  PAY = it;
+  $('pay-title').textContent = `${it.title} · ${it.ton} TON`;
+  const enough = S.balance >= it.ton;
+  $('pay-bal').toggleAttribute('disabled', !enough);
+  $('pay-bal-s').textContent = enough ? `На балансе ${fmt(S.balance, 4)}` : `Не хватает ${fmt(it.ton - S.balance, 4)} — пополните баланс`;
+  $('pay-bal-v').textContent = `${it.ton} TON`; $('pay-ton-v').textContent = `${it.ton} TON`;
+  $('pay-ton').hidden = !S.ton_enabled;
+  $('pay-star-v').innerHTML = TGSTAR; $('pay-star-v').append(' ' + (it.stars || starsFor(it.ton)));
+  paySheet(true);
+}
+$('pay-bal').onclick = () => { paySheet(false); buyBalance(PAY); };
+$('pay-ton').onclick = () => { paySheet(false); buyTon(PAY, $('pay-ton')); };
+$('pay-star').onclick = () => { paySheet(false); buy(PAY, $('pay-star')); };
+/* ---------- мои серверы ---------- */
+function renderMyServers(s) {
+  const act = s.my_servers.filter(x => x.active);
+  $('ms-total').textContent = `${Math.round(s.hashrate).toLocaleString('ru')} GH/s`;
+  $('ms-count').textContent = act.length ? `${act.length} ${plural(act.length, 'сервер работает', 'сервера работают', 'серверов работают')}` : 'Нет работающих серверов';
+  $('fee-s').textContent = s.fee ? `${Math.round(s.fee * 100)}% с майнинга · отключается навсегда` : 'Отключена навсегда';
+  const fa = $('fee-act'); fa.innerHTML = '';
+  if (s.fee) { const b = el('button', { class: 'pill num' }, `${s.nofee_price} TON`); b.onclick = () => pay({ id: 'nofee', title: 'Отключить комиссию', ton: s.nofee_price }); fa.append(b); }
+  else fa.append(el('span', { class: 'val', style: 'color:var(--green)' }, '✓'));
+  const box = $('ms-list'); box.innerHTML = '';
+  if (!s.my_servers.length) box.append(el('div', { class: 'group' }, el('div', { class: 'empty' }, 'У вас пока нет серверов')));
+  const now = Date.now() / 1000;
+  s.my_servers.forEach(m => {
+    const left = Math.max(0, m.expires - now), days = Math.ceil(left / 86400);
+    const card = el('div', { class: 'srv', style: m.active ? '' : 'opacity:.6' });
+    card.append(el('div', { class: 'hd' }, icon('fan', m.active ? 'var(--indigo)' : 'var(--label3)'),
+      el('div', { class: 'tx' }, el('b', {}, m.spec), el('small', {}, `${m.hashrate.toLocaleString('ru')} GH/s`)),
+      el('span', { class: 'val', style: m.active ? (days <= 3 ? 'color:var(--orange)' : '') : 'color:var(--red)' },
+        m.active ? (left < 86400 ? `< 1 дня` : `${days} ${plural(days, 'день', 'дня', 'дней')}`) : 'Истёк')));
+    const bar = el('div', { class: 'bar' }, el('i', { style: `width:${Math.min(100, left / (s.rent_days * 86400) * 100)}%` }));
+    const bt = el('div', { class: 'bt' });
+    const up = m.upgrade && m.active ? el('div', { class: 'up' }, `Улучшение → ${m.upgrade.spec} · ${m.upgrade.hashrate.toLocaleString('ru')} GH/s`) : '';
+    if (m.upgrade && m.active) {
+      const u = el('button', { class: 'pill' }, `Улучшить · ${m.upgrade.price} TON`);
+      u.onclick = () => pay({ id: `upg:${m.id}`, title: `Улучшить до ${m.upgrade.spec}`, ton: m.upgrade.price }); bt.append(u);
+    }
+    const r = el('button', { class: 'pill' }, `Продлить · ${m.renew} TON`);
+    r.onclick = () => pay({ id: `ren:${m.id}`, title: `Продлить ${m.spec} на ${s.rent_days} дней`, ton: m.renew }); bt.append(r);
+    card.append(bar, up, bt); box.append(card);
+  });
+}
+$('ms-buy').onclick = () => go('shop');
 // пополнение
 function topSheet(on) { $('top-scrim').classList.toggle('on', on); $('top-sheet').classList.toggle('on', on); }
 $('top-scrim').onclick = $('top-cancel').onclick = () => topSheet(false);
@@ -520,20 +618,28 @@ async function loadWdHist() {
 /* ---------- магазин (Stars) ---------- */
 const SHOP_ICON = { boost2: ['bolt', 'var(--orange)'], boost3: ['bolt', 'var(--pink)'], level: ['up', 'var(--indigo)'], storage12: ['bag', 'var(--blue)'], storage24: ['bag', 'var(--indigo)'] };
 const SKIN_BG = { skin_gold: '#F5B83D', skin_emerald: '#30D158', skin_crimson: '#FF375F', skin_ice: '#BDE6FF', skin_black: '#2C2C2E', '': '#5E5CE6' };
-function tonBtn(it) { const b = el('button', { class: 'pill num', style: 'margin-left:6px' }, `${it.ton} TON`); b.onclick = () => S.balance >= it.ton ? buyBalance(it) : buyTon(it, b); return b; }
-function payBtns(it) { const sb = starBtn(it); if (!it.ton) return sb; const w = el('div', { style: 'display:flex;flex:none' }); w.append(sb, tonBtn(it)); return w; }
+function payBtns(it) { const b = el('button', { class: 'pill num' }, `${it.ton} TON`); b.onclick = () => pay(it); return b; }
 function starBtn(it) { const b = el('button', { class: 'pill star num' }); b.innerHTML = TGSTAR; b.append(String(it.stars)); b.onclick = () => buy(it, b); return b; }
 function renderShop(s) {
   ['boost', 'storage', 'skin', 'servers'].forEach(c => $('s-' + c).innerHTML = '');
+  const hrs = Math.max(0, Math.round((s.restock_at - Date.now() / 1000) / 3600));
+  $('s-srv-cap').textContent = s.first_discount ? `Серверы · первый −${Math.round(s.first_discount * 100)}%` : 'Серверы';
+  $('s-srv-note').textContent = `Аренда на ${s.rent_days} дней. Склад пополняется каждый день в 12:00 МСК (через ${hrs} ч). Окупаемость указана без комиссии.`;
   s.servers.forEach(sv => {
-    const cur = sv.n === s.level, own = sv.n < s.level, next = sv.n === s.level + 1;
+    const out = sv.stock <= 0;
+    const tx = el('div', { class: 'tx' }, el('b', {}, sv.spec),
+      el('small', {}, `${sv.hashrate.toLocaleString('ru')} GH/s · окуп. ~${sv.payback} дн · `,
+        el('span', { style: out ? 'color:var(--red)' : sv.stock < 10 ? 'color:var(--orange)' : '' }, out ? 'нет' : `${sv.stock} шт`)));
+    tx.firstChild.style.whiteSpace = 'normal';
     let act;
-    if (cur) act = el('span', { class: 'val', style: 'color:var(--green)' }, 'Текущий');
-    else if (own) act = el('span', { class: 'val' }, '✓');
-    else if (next) { act = el('button', { class: 'pill num' }, `${sv.price} TON`); act.onclick = () => $('upg').onclick(); }
-    else act = el('span', { class: 'val num' }, `${sv.price} TON`);
-    $('s-servers').append(el('div', { class: 'cell', style: own ? 'opacity:.5' : '' }, icon('fan', cur ? 'var(--green)' : 'var(--indigo)'),
-      el('div', { class: 'tx' }, el('b', {}, sv.spec), el('small', {}, `${sv.hashrate.toLocaleString('ru')} GH/s`)), act));
+    if (out) act = el('button', { class: 'pill', disabled: '' }, 'Нет');
+    else {
+      act = el('button', { class: 'pill num' });
+      if (sv.price < sv.full_price) act.append(el('span', { class: 'old' }, String(sv.full_price)));
+      act.append(`${sv.price} TON`);
+      act.onclick = () => pay({ id: `srv:${sv.tier}`, title: `Сервер ${sv.spec}`, ton: sv.price });
+    }
+    $('s-servers').append(el('div', { class: 'cell', style: out ? 'opacity:.55' : '' }, icon('fan', 'var(--indigo)'), tx, act));
   });
   // базовый скин
   const def = el('button', { class: 'pill', disabled: !s.skin ? '' : false }, !s.skin ? 'Надет' : 'Надеть'); def.onclick = () => wearSkin('');
@@ -559,7 +665,7 @@ async function buy(it, btn) {
     const { link } = await api('/api/stars/invoice', 'POST', { item: it.id });
     tg.openInvoice(link, async status => {
       btn.disabled = false;
-      if (status === 'paid') { hud(`${it.title} — активировано`); setTimeout(async () => render(await api('/api/state')), 1200); }
+      if (status === 'paid') { hud(`${it.title} — готово`); setTimeout(async () => render(await api('/api/state')), 1200); }
       else if (status === 'failed') hud('Оплата не прошла', false);
     });
   } catch (e) { btn.disabled = false; hud(e.message, false); }
@@ -640,7 +746,7 @@ async function loadFriends() {
   const box = $('flist'); box.innerHTML = '';
   if (!r.friends.length) box.append(el('div', { class: 'empty' }, 'Пригласите первого друга'));
   r.friends.forEach(f => box.append(el('div', { class: 'cell' }, icon('person', 'var(--label3)'),
-    el('div', { class: 'tx' }, el('b', {}, f.name || 'Игрок')), el('span', { class: 'val' }, `Сервер ${f.level + 1}`))));
+    el('div', { class: 'tx' }, el('b', {}, f.name || 'Игрок')), el('span', { class: 'val' }, `${f.servers} ${plural(f.servers, 'сервер', 'сервера', 'серверов')}`))));
 }
 $('invite').onclick = () => tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent('Присоединяйся к TonCry')}`);
 $('copy').onclick = () => navigator.clipboard.writeText(link).then(() => hud('Ссылка скопирована'));
@@ -671,6 +777,7 @@ function bindTab(b) { b.onclick = () => {
   if (p === 'admin') loadAdmin();
 }; }
 document.querySelectorAll('#tabbar button').forEach(bindTab);
+function go(p) { document.querySelector(`#tabbar [data-p="${p}"]`)?.click(); }
 
 /* ---------- админка: загружается с сервера только для админа ---------- */
 let adminLoaded = false;

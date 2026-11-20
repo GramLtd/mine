@@ -12,7 +12,7 @@ from pydantic import BaseModel
 
 from . import db, game, settings, ton
 from .auth import current_user
-from .config import (LEVELS, DAILY_BONUS, CHANNEL_USERNAME, REF_BONUS_COINS, SHOP, STORAGE_ITEMS,
+from .config import (SERVERS, RENT_DAYS, DAILY_BONUS, CHANNEL_USERNAME, REF_BONUS_COINS, SHOP, STORAGE_ITEMS,
                      ADMIN_IDS, ADMIN_USERNAMES, WEBAPP_URL, TOPUP_MIN)
 
 WEB = Path(__file__).resolve().parent.parent / "webapp"
@@ -51,20 +51,6 @@ def get_state(tg=Depends(current_user)):
 def claim(tg=Depends(current_user)):
     amount = game.settle(load(tg))
     return {"claimed": amount, **game.state(load(tg), is_admin(tg))}
-
-
-@api.post("/api/upgrade")
-def upgrade(tg=Depends(current_user)):
-    user = load(tg)
-    if user["level"] + 1 >= len(LEVELS):
-        raise HTTPException(400, "Максимальный уровень")
-    price = LEVELS[user["level"] + 1][1]
-    if user["balance"] < price:
-        raise HTTPException(400, "Недостаточно монет")
-    game.settle(user)
-    db.update(user["id"], level=user["level"] + 1)
-    db.add_balance(user["id"], -price)
-    return game.state(load(tg), is_admin(tg))
 
 
 @api.get("/api/friends")
@@ -173,62 +159,67 @@ async def withdraw(body: WithdrawIn, tg=Depends(current_user)):
     return {"ok": True, "id": wid, **game.state(load(tg), is_admin(tg))}
 
 
-# ---------- Telegram Stars ----------
+# ---------- покупки: баланс / TON / Stars ----------
 class InvoiceIn(BaseModel):
     item: str
     amount: float | None = None  # только для пополнения
 
 
+def _checked(user, item):
+    try:
+        game.check(user, item)
+    except game.NotBuyable as e:
+        raise HTTPException(400, str(e))
+
+
+@api.post("/api/buy")
+def buy_balance(body: InvoiceIn, tg=Depends(current_user)):
+    """Оплата с баланса (1 монета = 1 TON)."""
+    user = load(tg)
+    if body.item == "topup":
+        raise HTTPException(400, "Нет такого товара")
+    _checked(user, body.item)
+    price = game.price_ton(user, body.item)
+    if not db.spend(user["id"], price):
+        raise HTTPException(400, "Недостаточно средств на балансе")
+    err = game.apply_item(user["id"], body.item, paid_ton=price)
+    if err:
+        raise HTTPException(400, err)
+    return game.state(load(tg), is_admin(tg))
+
+
 @api.post("/api/stars/invoice")
 async def stars_invoice(body: InvoiceIn, tg=Depends(current_user)):
     user = load(tg)
-    if body.item == "activate":
-        if user.get("activated"):
-            raise HTTPException(400, "Майнинг уже запущен")
-        title, desc, price = "Запуск майнинга", "Сервер начинает майнить навсегда", game.item_stars_price("activate")
-        payload = f"activate:{user['id']}:{price}"
-    elif body.item in SHOP:
-        title, desc, price, _cat = SHOP[body.item]
-        _check_buyable(user, body.item)
-        payload = f"{body.item}:{user['id']}"
-    else:
-        raise HTTPException(404, "Нет такого товара")
+    if body.item == "topup":
+        raise HTTPException(400, "Пополнение — только в TON")
+    _checked(user, body.item)
+    stars = game.price_stars(user, body.item)
+    title = game.item_title(body.item)[:32]
     link = await bot.create_invoice_link(
-        title=title, description=desc, payload=payload,
-        currency="XTR", prices=[LabeledPrice(label=title, amount=price)], provider_token="")
+        title=title, description=title, payload=f"{body.item}|{user['id']}|{stars}",
+        currency="XTR", prices=[LabeledPrice(label=title, amount=stars)], provider_token="")
     return {"link": link}
 
 
-# ---------- оплата в TON ----------
 async def ton_paid(order):
+    uid, amount = order["user_id"], order["nano"] / ton.NANO
+    title = game.item_title(order["item"])
     if order["item"] == "topup":
-        db.add_balance(order["user_id"], order["nano"] / ton.NANO)
+        db.add_balance(uid, amount)
+        err = None
     else:
-        game.apply_item(order["user_id"], order["item"])
-    title = _item_title(order["item"])
-    amount = order["nano"] / ton.NANO
+        err = game.apply_item(uid, order["item"], paid_ton=amount)
+    text = f"⚠️ {err}" if err else f"✅ Оплата {amount:g} TON получена — «{title}»."
     try:
-        await bot.send_message(order["user_id"], f"✅ Оплата {amount:g} TON получена — «{title}» активирован.")
+        await bot.send_message(uid, text)
     except Exception:
         pass
     for aid in ADMIN_IDS:
         try:
-            await bot.send_message(aid, f"💎 TON-оплата #{order['id']}: {amount:g} TON · {title} · id {order['user_id']}")
+            await bot.send_message(aid, f"💎 TON-оплата #{order['id']}: {amount:g} TON · {title} · id {uid}")
         except Exception:
             pass
-
-
-def _check_buyable(user, item):
-    if item.startswith("skin_") and item in (user.get("skins") or "").split(","):
-        raise HTTPException(400, "Скин уже куплен")
-    if item in STORAGE_ITEMS and game.storage_hours(user) >= STORAGE_ITEMS[item]:
-        raise HTTPException(400, "Уже есть такое или большее хранилище")
-
-
-def _item_title(item):
-    if item.startswith("up:"):
-        return f"Сервер {game.server_info(int(item[3:]))['spec']}"
-    return {"topup": "Пополнение баланса", "activate": "Запуск майнинга"}.get(item) or SHOP[item][0]
 
 
 @api.post("/api/ton/order")
@@ -237,49 +228,20 @@ def ton_order(body: InvoiceIn, tg=Depends(current_user)):
     if not settings.ton_enabled():
         raise HTTPException(400, "Оплата в TON временно недоступна")
     item = body.item
-    if item == "upgrade":
-        if user["level"] + 1 >= len(LEVELS):
-            raise HTTPException(400, "Максимальный уровень")
-        item = f"up:{user['level'] + 1}"
-        amount = LEVELS[user["level"] + 1][1]  # курс монеты к TON 1:1
-    elif item == "topup":
+    if item == "topup":
         amount = round(body.amount or 0, 4)
         if amount < TOPUP_MIN or amount > 100000:
             raise HTTPException(400, f"Минимальное пополнение — {TOPUP_MIN:g} TON")
-    elif item == "activate":
-        if user.get("activated"):
-            raise HTTPException(400, "Майнинг уже запущен")
-        amount = settings.activation_ton()
-    elif item in SHOP:
-        _check_buyable(user, item)
-        amount = game.item_ton_price(item)
     else:
-        raise HTTPException(404, "Нет такого товара")
+        _checked(user, item)
+        amount = game.price_ton(user, item)
     nano = round(amount * ton.NANO)
     comment = f"TC{user['id']}-{secrets.token_hex(3)}"
     oid = db.ton_order_create(user["id"], item, nano, comment)
     wallet = settings.ton_wallet()
     return {"id": oid, "address": wallet, "amount": nano / ton.NANO, "nano": nano, "comment": comment,
-            "title": _item_title(item), "payload": ton.comment_payload(comment),
+            "title": game.item_title(item), "payload": ton.comment_payload(comment),
             "bot": getattr(api.state, "bot_username", ""), **ton.transfer_links(wallet, nano, comment)}
-
-
-@api.post("/api/buy")
-def buy_balance(body: InvoiceIn, tg=Depends(current_user)):
-    """Покупка товара или запуска майнинга с баланса (1 монета = 1 TON)."""
-    user = load(tg)
-    if body.item == "activate":
-        if user.get("activated"):
-            raise HTTPException(400, "Майнинг уже запущен")
-    elif body.item in SHOP:
-        _check_buyable(user, body.item)
-    else:
-        raise HTTPException(404, "Нет такого товара")
-    price = game.item_ton_price(body.item)
-    if not db.spend(user["id"], price):
-        raise HTTPException(400, "Недостаточно средств на балансе")
-    game.apply_item(user["id"], body.item)
-    return game.state(load(tg), is_admin(tg))
 
 
 @api.post("/api/ton/order/{oid}/check")
@@ -313,7 +275,6 @@ def a_users(q: str = "", _=Depends(admin)):
 
 class UserEdit(BaseModel):
     balance: float | None = None
-    level: int | None = None   # 1..max
     banned: bool | None = None
     boost_hours: float | None = None
     boost_mult: float | None = None
@@ -329,8 +290,6 @@ def a_edit(uid: int, body: UserEdit, _=Depends(admin)):
     f = {}
     if body.balance is not None:
         f["balance"] = max(0.0, body.balance)
-    if body.level is not None:
-        f["level"] = max(0, min(len(LEVELS) - 1, body.level - 1))
     if body.banned is not None:
         f["banned"] = int(body.banned)
     if body.boost_hours is not None:
@@ -352,12 +311,16 @@ class GrantIn(BaseModel):
 async def a_grant(uid: int, body: GrantIn, _=Depends(admin)):
     if not db.get(uid):
         raise HTTPException(404, "Пользователь не найден")
-    if body.item not in SHOP:
+    if not (body.item in SHOP or body.item == "nofee" or body.item.startswith("srv:")):
         raise HTTPException(400, "Нет такого товара")
-    game.apply_item(uid, body.item)
+    if body.item.startswith("srv:"):  # выдача сервера не тратит склад
+        game.settle(db.get(uid))
+        db.server_add(uid, int(body.item[4:]), RENT_DAYS)
+    else:
+        game.apply_item(uid, body.item)
     if body.notify:
         try:
-            await bot.send_message(uid, f"🎁 Вам выдано: «{SHOP[body.item][0]}»")
+            await bot.send_message(uid, f"🎁 Вам выдано: «{game.item_title(body.item)}»")
         except Exception:
             pass
     u = db.get(uid)
@@ -449,7 +412,8 @@ class SettingsIn(BaseModel):
     support_username: str | None = None
     ton_wallet: str | None = None
     star_rub: float | None = None
-    activation_ton: float | None = None
+    nofee_price: float | None = None
+    stock_daily: list[int] | None = None
     ton_rub: float | None = None
 
 
@@ -482,8 +446,11 @@ def a_set_settings(body: SettingsIn, _=Depends(admin)):
         if body.star_rub <= 0:
             raise HTTPException(400, "Цена звезды должна быть больше 0")
         db.set_setting("star_rub", body.star_rub)
-    if body.activation_ton is not None:
-        db.set_setting("activation_ton", max(0.01, body.activation_ton))
+    if body.nofee_price is not None:
+        db.set_setting("nofee_price", max(0.01, body.nofee_price))
+    if body.stock_daily is not None:
+        for t, n in enumerate(body.stock_daily[:len(SERVERS)]):
+            db.set_setting(f"stock_daily_{t}", max(0, int(n)))
     if body.ton_rub is not None:
         if body.ton_rub <= 0:
             raise HTTPException(400, "Курс TON должен быть больше 0")

@@ -1,13 +1,67 @@
+import math
 import time
-from . import db
-from .config import (LEVELS, SERVERS, COIN_PER_GH_PER_SEC, STORAGE_HOURS, REF_HASH_BONUS,
+from datetime import datetime, timedelta, timezone
+
+from . import db, settings
+from .config import (SERVERS, RENT_DAYS, FIRST_DISCOUNT, UPGRADE_MARKUP, MINING_FEE, NOFEE_PRICE,
+                     STOCK_RESET_HOUR_MSK, COIN_PER_GH_PER_SEC, STORAGE_HOURS, REF_HASH_BONUS,
                      REF_HASH_BONUS_MAX, SHOP, STORAGE_ITEMS)
-from . import settings
+
+MSK = timezone(timedelta(hours=3))
 
 
-def base_hashrate(user) -> float:
-    n = db.friend_count(user["id"])
-    return LEVELS[user["level"]][0] * (1 + min(n * REF_HASH_BONUS, REF_HASH_BONUS_MAX))
+# ---------- тарифы ----------
+def tier_hashrate(t) -> int:
+    """GH/s, при котором сервер окупает аренду за свои «дни окупаемости» (без комиссии и бонусов)."""
+    _c, _r, price, payback, _s = SERVERS[t]
+    return round(price / payback / 86400 / COIN_PER_GH_PER_SEC)
+
+
+def tier_price(t) -> float:
+    return float(SERVERS[t][2])
+
+
+def daily_stock(t) -> int:
+    return int(db.get_setting(f"stock_daily_{t}", SERVERS[t][4]))
+
+
+def stock_period(now=None) -> int:
+    """Номер «складских суток»: меняется каждый день в 12:00 МСК."""
+    dt = datetime.fromtimestamp(now or time.time(), MSK) - timedelta(hours=STOCK_RESET_HOUR_MSK)
+    return dt.toordinal()
+
+
+def next_restock(now=None) -> float:
+    dt = datetime.fromtimestamp(now or time.time(), MSK)
+    r = dt.replace(hour=STOCK_RESET_HOUR_MSK, minute=0, second=0, microsecond=0)
+    if r <= dt:
+        r += timedelta(days=1)
+    return r.timestamp()
+
+
+def stock_left(t) -> int:
+    return db.stock_get(t, stock_period(), daily_stock(t))
+
+
+def tier_info(t, discount=False):
+    c, r, price, payback, _s = SERVERS[t]
+    word = "ядро" if c % 10 == 1 and c % 100 != 11 else "ядра" if 2 <= c % 10 <= 4 and not 12 <= c % 100 <= 14 else "ядер"
+    final = round(price * (1 - FIRST_DISCOUNT), 2) if discount else price
+    return {"tier": t, "cores": c, "ram": r, "spec": f"{c} {word} / {r} GB RAM", "hashrate": tier_hashrate(t),
+            "price": final, "full_price": price, "payback": payback, "stock": stock_left(t), "daily": daily_stock(t)}
+
+
+def upgrade_price(t) -> float:
+    return round((tier_price(t + 1) - tier_price(t)) * UPGRADE_MARKUP, 2)
+
+
+# ---------- доход ----------
+def ref_mult(user) -> float:
+    return 1 + min(db.friend_count(user["id"]) * REF_HASH_BONUS, REF_HASH_BONUS_MAX)
+
+
+def fee(user) -> float:
+    return 0.0 if user.get("no_fee") else MINING_FEE
 
 
 def boost(user, now=None) -> float:
@@ -19,35 +73,148 @@ def storage_hours(user) -> float:
     return max(STORAGE_HOURS, user.get("storage_hours") or 0)
 
 
-def pending(user, now=None) -> float:
-    """Начисление за период [last_claim, now] с учётом буста, который мог закончиться посередине."""
+def active_servers(user, now=None):
     now = now or time.time()
-    if not user.get("activated"):
-        return 0.0
+    return [s for s in db.servers(user["id"], 0) if s["expires"] > now]
+
+
+def hashrate(user, now=None) -> float:
+    """Текущий суммарный хешрейт (с рефералами и бустом)."""
+    now = now or time.time()
+    return sum(tier_hashrate(s["tier"]) for s in active_servers(user, now)) * ref_mult(user) * boost(user, now)
+
+
+def pending(user, now=None) -> float:
+    """Начисление за [last_claim, now] по каждому серверу (с учётом истечения аренды и буста), минус комиссия."""
+    now = now or time.time()
     start = max(user["last_claim"], now - storage_hours(user) * 3600)
     if now <= start:
         return 0.0
-    secs = now - start
-    boosted = max(0.0, min(now, user.get("boost_until") or 0) - start)
-    mult = user.get("boost_mult") or 1
-    eff = (secs - boosted) + boosted * mult
-    return eff * base_hashrate(user) * COIN_PER_GH_PER_SEC
+    bu, mult = user.get("boost_until") or 0, user.get("boost_mult") or 1
+    gh_secs = 0.0
+    for s in db.servers(user["id"], 0):
+        end = min(now, s["expires"])
+        a = max(start, s["created"])
+        if end <= a:
+            continue
+        boosted = max(0.0, min(end, bu) - a)
+        gh_secs += tier_hashrate(s["tier"]) * ((end - a - boosted) + boosted * mult)
+    return gh_secs * ref_mult(user) * COIN_PER_GH_PER_SEC * (1 - fee(user))
 
 
 def settle(user, now=None):
-    """Зачислить накопленное в «хранилище» и сбросить таймер (перед изменением скорости)."""
+    """Зачислить накопленное и сбросить таймер (перед изменением набора серверов/скорости)."""
     now = now or time.time()
     acc = pending(user, now)
     db.update(user["id"], balance=user["balance"] + acc, last_claim=now)
     return acc
 
 
-def apply_item(uid: int, item: str):
+# ---------- товары: srv:<tier>, upg:<server_id>, ren:<server_id>, nofee, topup, товары SHOP ----------
+class NotBuyable(Exception):
+    pass
+
+
+def item_title(item) -> str:
+    kind, _, arg = item.partition(":")
+    if kind == "srv":
+        return f"Сервер {tier_info(int(arg))['spec']}"
+    if kind in ("upg", "ren"):
+        s = db.server_get(int(arg))
+        spec = tier_info(s["tier"])["spec"] if s else "сервер"
+        return f"Улучшение: {spec}" if kind == "upg" else f"Продление: {spec}"
+    if item == "nofee":
+        return "Отключение комиссии"
+    if item == "topup":
+        return "Пополнение баланса"
+    return SHOP[item][0] if item in SHOP else "Покупка"
+
+
+def check(user, item):
+    """Проверить, что товар можно купить; бросает NotBuyable с причиной."""
+    kind, _, arg = item.partition(":")
+    if kind == "srv":
+        if not arg.isdigit() or not 0 <= int(arg) < len(SERVERS):
+            raise NotBuyable("Нет такого сервера")
+        if stock_left(int(arg)) <= 0:
+            raise NotBuyable("Этот сервер закончился, пополнение в 12:00 МСК")
+    elif kind in ("upg", "ren"):
+        s = db.server_get(int(arg)) if arg.isdigit() else None
+        if not s or s["user_id"] != user["id"]:
+            raise NotBuyable("Сервер не найден")
+        if kind == "upg":
+            if s["expires"] <= time.time():
+                raise NotBuyable("Аренда истекла — сначала продлите сервер")
+            if s["tier"] + 1 >= len(SERVERS):
+                raise NotBuyable("Это максимальный тариф")
+    elif item == "nofee":
+        if user.get("no_fee"):
+            raise NotBuyable("Комиссия уже отключена")
+    elif item in SHOP:
+        if item.startswith("skin_") and item in (user.get("skins") or "").split(","):
+            raise NotBuyable("Скин уже куплен")
+        if item in STORAGE_ITEMS and storage_hours(user) >= STORAGE_ITEMS[item]:
+            raise NotBuyable("Уже есть такое или большее хранилище")
+    elif item != "topup":
+        raise NotBuyable("Нет такого товара")
+
+
+def price_ton(user, item) -> float:
+    kind, _, arg = item.partition(":")
+    if kind == "srv":
+        return tier_info(int(arg), discount=not user.get("bought_server"))["price"]
+    if kind == "upg":
+        return upgrade_price(db.server_get(int(arg))["tier"])
+    if kind == "ren":
+        return tier_price(db.server_get(int(arg))["tier"])
+    if item == "nofee":
+        return float(db.get_setting("nofee_price", NOFEE_PRICE))
+    return settings.stars_to_ton(SHOP[item][2])
+
+
+def price_stars(user, item) -> int:
+    if item in SHOP:
+        return SHOP[item][2]
+    return settings.ton_to_stars(price_ton(user, item))
+
+
+def apply_item(uid: int, item: str, paid_ton: float = 0.0) -> str | None:
+    """Выдать товар. Если выдать уже нельзя (сервер закончился и т.п.) — вернуть paid_ton на баланс.
+    Возвращает текст причины возврата или None."""
     user = db.get(uid)
     now = time.time()
-    if item in ("boost2", "boost3"):
+    kind, _, arg = item.partition(":")
+    try:
+        check(user, item) if kind != "srv" else None
+    except NotBuyable as e:
+        if paid_ton:
+            db.add_balance(uid, paid_ton)
+        return str(e)
+    if kind == "srv":
+        t = int(arg)
+        if not db.stock_take(t, stock_period(now), daily_stock(t)):
+            if paid_ton:
+                db.add_balance(uid, paid_ton)
+            return "Сервер закончился на складе — оплата возвращена на баланс"
+        settle(user, now)
+        db.server_add(uid, t, RENT_DAYS)
+        db.update(uid, bought_server=1)
+    elif kind == "upg":
+        s = db.server_get(int(arg))
+        settle(user, now)
+        db.server_update(s["id"], tier=s["tier"] + 1)
+    elif kind == "ren":
+        s = db.server_get(int(arg))
+        settle(user, now)
+        if s["expires"] <= now:  # истёкший сервер запускается заново
+            db.server_update(s["id"], created=now, expires=now + RENT_DAYS * 86400, expiry_notified=0)
+        else:
+            db.server_update(s["id"], expires=s["expires"] + RENT_DAYS * 86400, expiry_notified=0)
+    elif item == "nofee":
+        settle(user, now)
+        db.update(uid, no_fee=1)
+    elif item in ("boost2", "boost3"):
         mult = 2 if item == "boost2" else 3
-        # копим монеты, но не забираем из хранилища: переносим по старой скорости
         acc = pending(user, now)
         cur_until = user["boost_until"] if user["boost_until"] > now and user["boost_mult"] == mult else now
         db.update(uid, balance=user["balance"] + acc, last_claim=now,
@@ -59,49 +226,28 @@ def apply_item(uid: int, item: str):
         owned = set(filter(None, (user.get("skins") or "").split(",")))
         owned.add(item)
         db.update(uid, skins=",".join(sorted(owned)), skin=item)
-    elif item == "activate":
-        if not user.get("activated"):
-            db.update(uid, activated=1, last_claim=now)
-    elif item.startswith("up:"):
-        target = int(item[3:])
-        if user["level"] + 1 == target and target < len(LEVELS):
-            settle(user, now)
-            db.update(uid, level=target)
-        else:  # уровень уже подняли другим способом — возвращаем оплату на баланс
-            db.update(uid, balance=user["balance"] + LEVELS[min(target, len(LEVELS) - 1)][1])
-    elif item == "level":
-        if user["level"] + 1 < len(LEVELS):
-            settle(user, now)
-            db.update(uid, level=user["level"] + 1)
-        else:
-            db.update(uid, boost_mult=2, boost_until=max(now, user["boost_until"]) + 2 * 86400)  # компенсация
-
-
-def server_info(i):
-    c, r, h, p = SERVERS[i]
-    word = "ядро" if c % 10 == 1 and c % 100 != 11 else "ядра" if 2 <= c % 10 <= 4 and not 12 <= c % 100 <= 14 else "ядер"
-    return {"n": i + 1, "cores": c, "ram": r, "hashrate": h, "price": p, "spec": f"{c} {word} / {r} GB RAM"}
-
-
-def item_ton_price(item):
-    if item == "activate":
-        return settings.activation_ton()
-    return settings.stars_to_ton(SHOP[item][2])
-
-
-def item_stars_price(item):
-    if item == "activate":
-        return settings.ton_to_stars(settings.activation_ton())
-    return SHOP[item][2]
+    elif paid_ton:  # неизвестный/устаревший товар — деньги на баланс
+        db.add_balance(uid, paid_ton)
+        return "Товар недоступен — оплата возвращена на баланс"
+    return None
 
 
 def state(user, is_admin=False) -> dict:
-    lvl = user["level"]
-    nxt = LEVELS[lvl + 1] if lvl + 1 < len(LEVELS) else None
     now = time.time()
     b = boost(user, now)
+    hr = hashrate(user, now)
+    first = not user.get("bought_server")
+    my = []
+    for s in db.servers(user["id"]):
+        info = tier_info(s["tier"])
+        my.append({"id": s["id"], "spec": info["spec"], "hashrate": info["hashrate"], "tier": s["tier"],
+                   "expires": s["expires"], "active": s["expires"] > now,
+                   "upgrade": ({"price": upgrade_price(s["tier"]), **{k: v for k, v in tier_info(s["tier"] + 1).items()
+                                                                      if k in ("spec", "hashrate")}}
+                               if s["tier"] + 1 < len(SERVERS) else None),
+                   "renew": tier_price(s["tier"])})
     ton_on = settings.ton_enabled()
-    hr = base_hashrate(user) * b
+    f = fee(user)
     return {
         "coin": settings.coin(),
         "min_withdraw": settings.min_withdraw(),
@@ -109,19 +255,22 @@ def state(user, is_admin=False) -> dict:
         "balance": user["balance"],
         "pending": pending(user, now),
         "hashrate": hr,
-        "rate_per_sec": hr * COIN_PER_GH_PER_SEC if user.get("activated") else 0,
+        "rate_per_sec": hr * COIN_PER_GH_PER_SEC * (1 - f),
         "storage_hours": storage_hours(user),
         "skins": [x for x in (user.get("skins") or "").split(",") if x],
         "skin": user.get("skin") or "",
-        "level": lvl + 1,
-        "max_level": len(LEVELS),
         "boost": {"mult": b, "until": user["boost_until"]} if b > 1 else None,
-        "next_level": {"hashrate": nxt[0], "price": nxt[1]} if nxt else None,
-        "server": server_info(lvl),
-        "servers": [server_info(i) for i in range(len(SERVERS))],
-        "activated": bool(user.get("activated")),
-        "activation": {"ton": settings.activation_ton(), "stars": item_stars_price("activate")},
+        "servers": [tier_info(t, discount=first) for t in range(len(SERVERS))],
+        "my_servers": my,
+        "active_count": sum(1 for s in my if s["active"]),
+        "first_discount": FIRST_DISCOUNT if first else 0,
+        "rent_days": RENT_DAYS,
+        "restock_at": next_restock(now),
+        "fee": f,
+        "nofee_price": float(db.get_setting("nofee_price", NOFEE_PRICE)),
         "ton_enabled": ton_on,
-        "shop": [{"id": k, "title": t, "desc": d, "stars": p, "cat": c, "ton": settings.stars_to_ton(p) if ton_on else None} for k, (t, d, p, c) in SHOP.items()],
+        "star_rate": settings.ton_rub() / settings.star_rub(),
+        "shop": [{"id": k, "title": t, "desc": d, "stars": p, "cat": c, "ton": settings.stars_to_ton(p)}
+                 for k, (t, d, p, c) in SHOP.items()],
         "is_admin": is_admin,
     }

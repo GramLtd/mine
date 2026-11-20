@@ -47,6 +47,16 @@ def init():
             PRIMARY KEY(user_id, mission_id)
         );
         CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT);
+        CREATE TABLE IF NOT EXISTS servers(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            tier INTEGER,
+            created REAL,
+            expires REAL,
+            expiry_notified INTEGER DEFAULT 0
+        );
+        CREATE INDEX IF NOT EXISTS servers_user ON servers(user_id);
+        CREATE TABLE IF NOT EXISTS stock(tier INTEGER PRIMARY KEY, left INTEGER, period INTEGER);
         CREATE TABLE IF NOT EXISTS ton_orders(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER,
@@ -76,9 +86,18 @@ def init():
                          ("skin", "TEXT DEFAULT ''"), ("full_notified", "REAL DEFAULT 0")]:
             if col not in cols:
                 c.execute(f"ALTER TABLE users ADD COLUMN {col} {ddl}")
-        if "activated" not in cols:  # платный запуск майнинга; уже играющим — бесплатно
-            c.execute("ALTER TABLE users ADD COLUMN activated INTEGER DEFAULT 0")
-            c.execute("UPDATE users SET activated=1")
+        if "activated" not in cols:
+            c.execute("ALTER TABLE users ADD COLUMN activated INTEGER DEFAULT 1")
+        for col, ddl in [("no_fee", "INTEGER DEFAULT 0"), ("bought_server", "INTEGER DEFAULT 0")]:
+            if col not in cols:
+                c.execute(f"ALTER TABLE users ADD COLUMN {col} {ddl}")
+        # переход с уровней на серверы: игрокам с запущенным майнингом — сервер их уровня на 30 дней
+        if not c.execute("SELECT value FROM settings WHERE key='servers_migrated'").fetchone():
+            now = time.time()
+            c.execute("INSERT INTO servers(user_id,tier,created,expires) "
+                      "SELECT id, level, ?, ? FROM users WHERE activated=1", (now, now + 30 * 86400))
+            c.execute("UPDATE users SET bought_server=1 WHERE activated=1")
+            c.execute("INSERT INTO settings VALUES('servers_migrated','1')")
 
 
 def get(uid: int):
@@ -125,7 +144,7 @@ def add_balance(uid: int, amount: float):
 def friends(uid: int):
     with conn() as c:
         return [dict(r) for r in c.execute(
-            "SELECT id,name,level FROM users WHERE referrer=? ORDER BY created DESC", (uid,))]
+            "SELECT id,name,(SELECT COUNT(*) FROM servers s WHERE s.user_id=users.id AND s.expires>strftime('%s','now')) AS servers FROM users WHERE referrer=? ORDER BY created DESC", (uid,))]
 
 
 def friend_count(uid: int) -> int:
@@ -331,6 +350,64 @@ def storage_full_users(now, base_hours, limit=200):
     """Игроки, у которых хранилище заполнилось и по этому заходу ещё не было уведомления."""
     with conn() as c:
         return [dict(r) for r in c.execute(
-            "SELECT * FROM users WHERE banned=0 AND activated=1 AND full_notified < last_claim "
-            "AND last_claim + MAX(?, COALESCE(storage_hours,0)) * 3600 <= ? LIMIT ?",
+            "SELECT * FROM users u WHERE banned=0 AND full_notified < last_claim "
+            "AND last_claim + MAX(?, COALESCE(storage_hours,0)) * 3600 <= ? "
+            "AND EXISTS(SELECT 1 FROM servers s WHERE s.user_id=u.id AND s.expires > u.last_claim) LIMIT ?",
             (base_hours, now, limit))]
+
+
+# ---------- серверы ----------
+def servers(uid, include_expired_days=7):
+    with conn() as c:
+        return [dict(r) for r in c.execute(
+            "SELECT * FROM servers WHERE user_id=? AND expires>? ORDER BY tier DESC, id",
+            (uid, time.time() - include_expired_days * 86400))]
+
+
+def server_get(sid):
+    with conn() as c:
+        r = c.execute("SELECT * FROM servers WHERE id=?", (sid,)).fetchone()
+        return dict(r) if r else None
+
+
+def server_add(uid, tier, days):
+    now = time.time()
+    with conn() as c:
+        return c.execute("INSERT INTO servers(user_id,tier,created,expires) VALUES(?,?,?,?)",
+                         (uid, tier, now, now + days * 86400)).lastrowid
+
+
+def server_update(sid, **f):
+    with conn() as c:
+        c.execute(f"UPDATE servers SET {', '.join(k + '=?' for k in f)} WHERE id=?", (*f.values(), sid))
+
+
+def servers_expired_unnotified(now):
+    with conn() as c:
+        return [dict(r) for r in c.execute(
+            "SELECT s.* FROM servers s JOIN users u ON u.id=s.user_id "
+            "WHERE s.expires<=? AND s.expiry_notified=0 AND u.banned=0 LIMIT 200", (now,))]
+
+
+# ---------- склад ----------
+def stock_get(tier, period, daily):
+    with conn() as c:
+        r = c.execute("SELECT left, period FROM stock WHERE tier=?", (tier,)).fetchone()
+        if not r or r["period"] != period:
+            c.execute("INSERT INTO stock VALUES(?,?,?) ON CONFLICT(tier) DO UPDATE SET left=excluded.left, period=excluded.period",
+                      (tier, daily, period))
+            return daily
+        return r["left"]
+
+
+def stock_take(tier, period, daily) -> bool:
+    stock_get(tier, period, daily)
+    with conn() as c:
+        return c.execute("UPDATE stock SET left=left-1 WHERE tier=? AND period=? AND left>0",
+                         (tier, period)).rowcount == 1
+
+
+def stock_set(tier, period, left):
+    with conn() as c:
+        c.execute("INSERT INTO stock VALUES(?,?,?) ON CONFLICT(tier) DO UPDATE SET left=excluded.left, period=excluded.period",
+                  (tier, max(0, left), period))

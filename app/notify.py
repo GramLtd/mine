@@ -19,6 +19,8 @@ async def storage_watcher(bot, interval: int = 60):
                 db.update(u["id"], full_notified=u["last_claim"])  # отмечаем заранее: не шлём дважды
                 amount = game.pending(u)
                 hours = game.storage_hours(u)
+                if amount <= 0:
+                    continue
                 text = (f"⛏ <b>Майнинг завершён!</b>\n\n"
                         f"За {hours:g} ч ферма намайнила <b>{amount:.6f} {settings.coin()}</b>.\n"
                         f"Хранилище заполнено — майнинг остановлен. "
@@ -31,6 +33,17 @@ async def storage_watcher(bot, interval: int = 60):
                     pass  # бот заблокирован игроком
                 except Exception as e:
                     log.warning("notify %s failed: %s", u["id"], e)
+                await asyncio.sleep(0.05)
+            for sv in db.servers_expired_unnotified(time.time()):
+                db.server_update(sv["id"], expiry_notified=1)
+                spec = game.tier_info(sv["tier"])["spec"]
+                try:
+                    await bot.send_message(sv["user_id"], f"⏳ <b>Аренда сервера закончилась</b>\n\n{spec} больше не майнит. "
+                                           f"Продлите его во вкладке «Мои серверы».", reply_markup=kb())
+                except TelegramRetryAfter as e:
+                    await asyncio.sleep(e.retry_after)
+                except Exception:
+                    pass
                 await asyncio.sleep(0.05)
         except Exception:
             log.exception("storage watcher failed")

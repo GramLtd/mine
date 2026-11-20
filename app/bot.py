@@ -71,15 +71,15 @@ async def admin_cmd(msg: Message):
 # ---------- Telegram Stars ----------
 @router.pre_checkout_query()
 async def pre_checkout(q: PreCheckoutQuery):
-    item, uid, *rest = q.invoice_payload.split(":") + [""]
-    if item == "activate":  # цена в звёздах плавает с курсом — сверяем с ценой из счёта
-        ok = uid == str(q.from_user.id) and rest[0].isdigit() and q.total_amount == int(rest[0])
-    else:
-        ok = item in SHOP and uid == str(q.from_user.id) and q.total_amount == SHOP[item][2]
-    if ok and item.startswith("skin_") and item in (db.get(q.from_user.id) or {}).get("skins", ""):
-        ok = False  # скин уже куплен
+    item, uid, stars = (q.invoice_payload.split("|") + ["", ""])[:3]
     user = db.get(q.from_user.id)
-    if ok and user and not user.get("banned"):
+    ok = bool(user) and not user.get("banned") and uid == str(q.from_user.id) and str(q.total_amount) == stars
+    if ok:
+        try:
+            game.check(user, item)
+        except game.NotBuyable as e:
+            return await q.answer(ok=False, error_message=str(e))
+    if ok:
         await q.answer(ok=True)
     else:
         await q.answer(ok=False, error_message="Не удалось оформить покупку, попробуйте ещё раз.")
@@ -88,10 +88,20 @@ async def pre_checkout(q: PreCheckoutQuery):
 @router.message(F.successful_payment)
 async def paid(msg: Message):
     sp = msg.successful_payment
-    item = sp.invoice_payload.partition(":")[0]
+    pl = sp.invoice_payload
+    item = pl.split("|")[0] if "|" in pl else pl.partition(":")[0]  # старый формат: item:uid
+    err = None
     if db.add_payment(sp.telegram_payment_charge_id, msg.from_user.id, item, sp.total_amount):
-        game.apply_item(msg.from_user.id, item)
-    await msg.answer(f"⭐ Спасибо! «{SHOP.get(item, ('Запуск майнинга' if item == 'activate' else 'Покупка',))[0]}» активирован.", reply_markup=kb())
+        # если выдать уже нельзя (склад кончился) — возвращаем звёзды
+        err = game.apply_item(msg.from_user.id, item)
+        if err:
+            try:
+                await msg.bot.refund_star_payment(msg.from_user.id, sp.telegram_payment_charge_id)
+                db.mark_refunded(sp.telegram_payment_charge_id)
+                err += " Звёзды возвращены."
+            except Exception:
+                pass
+    await msg.answer(f"⚠️ {err}" if err else f"⭐ Спасибо! «{game.item_title(item)}» — готово.", reply_markup=kb())
 
 
 @router.message(Command("paysupport"))

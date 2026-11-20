@@ -48,11 +48,16 @@
     <div class="caption">Оплата в TON</div>
     <div class="group">
       <label class="cell field noicon"><span>Кошелёк</span><input id="s-tonw" placeholder="UQ…" autocapitalize="off" spellcheck="false"></label>
-      <label class="cell field noicon"><span>Запуск майнинга, TON</span><input id="s-act" type="number" step="any" inputmode="decimal"></label>
+      <label class="cell field noicon"><span>Отключить комиссию, TON</span><input id="s-nofee" type="number" step="any" inputmode="decimal"></label>
       <label class="cell field noicon"><span>1 звезда, ₽</span><input id="s-starrub" type="number" step="any" inputmode="decimal"></label>
       <label class="cell field noicon"><span>Запасной курс TON, ₽</span><input id="s-tonrub" type="number" step="any" inputmode="decimal"></label>
     </div>
     <p class="footnote" id="s-ton-note">Пустой кошелёк — оплата в TON отключена.</p>
+    <div class="caption">Склад серверов</div>
+    <div class="group">
+      <label class="cell field noicon"><span>Штук в сутки</span><input id="s-stock" placeholder="200, 150, 120, …" inputmode="numeric"></label>
+    </div>
+    <p class="footnote">Через запятую, по тарифам от младшего к старшему. Склад пополняется каждый день в 12:00 МСК. Остатки сейчас видны в магазине.</p>
     <div class="caption">Приветствие в боте (/start)</div>
     <textarea id="s-welcome" placeholder="HTML: <b>, <i>, <a href>. {coin} — название монеты"></textarea>
     <button class="btn primary" id="s-save" style="width:100%;margin-top:12px">Сохранить настройки</button>
@@ -86,7 +91,6 @@
   <div class="group">
     <label class="cell field noicon"><span>Баланс</span><input id="e-bal" type="number" step="any" inputmode="decimal"></label>
     <label class="cell field noicon"><span>Начислить +</span><input id="e-add" type="number" step="any" inputmode="decimal" placeholder="0"></label>
-    <label class="cell field noicon"><span>Сервер (1–10)</span><input id="e-lvl" type="number" min="1" inputmode="numeric"></label>
     <div class="cell field noicon"><span>Заблокирован</span><label class="sw"><input type="checkbox" id="e-ban"><span></span></label></div>
   </div>
   <div class="caption">Выдать платный товар</div>
@@ -154,16 +158,18 @@ function openUser(u) {
   [['ID', u.id], ['Username', u.username ? '@' + u.username : '—'], ['Друзей', u.friends], ['Регистрация', ago(u.created) + ' назад'],
    ['Буст', u.boost_until > Date.now() / 1000 ? `×${u.boost_mult}, ещё ${ago(2 * Date.now() / 1000 - u.boost_until)}` : 'нет']]
     .forEach(([k, v]) => info.append(el('div', { class: 'cell noicon' }, el('div', { class: 'tx' }, el('b', {}, k)), el('span', { class: 'val num' }, String(v)))));
-  $('e-bal').value = +fmt(u.balance, 6); $('e-lvl').value = u.level + 1; $('e-ban').checked = !!u.banned;
+  $('e-bal').value = +fmt(u.balance, 6); $('e-ban').checked = !!u.banned;
   $('e-bm').value = ''; $('e-bh').value = ''; $('e-add').value = '';
   const sel = $('e-item'); sel.innerHTML = '';
+  (S?.servers || []).forEach(sv => sel.append(el('option', { value: `srv:${sv.tier}` }, `Сервер ${sv.spec} · 30 дн`)));
+  sel.append(el('option', { value: 'nofee' }, 'Отключение комиссии'));
   (S?.shop || []).forEach(it => sel.append(el('option', { value: it.id }, `${it.title} (${it.stars}★)`)));
   $('scrim').classList.add('on'); $('sheet').classList.add('on');
 }
 function closeSheet() { $('scrim').classList.remove('on'); $('sheet').classList.remove('on'); }
 $('scrim').onclick = $('sh-cancel').onclick = closeSheet;
 $('sh-save').onclick = async () => {
-  const body = { balance: +$('e-bal').value, level: +$('e-lvl').value, banned: $('e-ban').checked, add_balance: +$('e-add').value || 0 };
+  const body = { balance: +$('e-bal').value, banned: $('e-ban').checked, add_balance: +$('e-add').value || 0 };
   if (+$('e-bh').value > 0) { body.boost_hours = +$('e-bh').value; body.boost_mult = +$('e-bm').value || 2; }
   try { await api('/api/admin/users/' + editing.id, 'POST', body); closeSheet(); hud('Сохранено'); loadUsers(); }
   catch (e) { hud(e.message, false); }
@@ -248,11 +254,11 @@ async function loadSettings() {
   loadMs();
   const s = await api('/api/admin/settings');
   $('s-coin').value = s.coin_name; $('s-min').value = s.min_withdraw; $('s-wden').checked = s.withdraw_enabled; $('s-welcome').value = s.welcome_text; $('s-support').value = s.support_username ? '@' + s.support_username : '';
-  $('s-tonw').value = s.ton_wallet || ''; $('s-starrub').value = s.star_rub; $('s-act').value = s.activation_ton; $('s-tonrub').value = s.ton_rub; $('s-ton-note').textContent = `Цены в TON = звёзды × цена звезды / курс TON. Сейчас 1 TON ≈ ${s.ton_rub_live.toFixed(2)} ₽ (tonapi.io; запасной курс — если сервис недоступен). Улучшение фермы — 1 ${s.coin_name} = 1 TON. Пустой кошелёк — оплата в TON отключена.`;
+  $('s-tonw').value = s.ton_wallet || ''; $('s-starrub').value = s.star_rub; $('s-nofee').value = s.nofee_price; $('s-stock').value = (S?.servers || []).map(x => x.daily ?? '').join(', '); $('s-tonrub').value = s.ton_rub; $('s-ton-note').textContent = `Цены в TON = звёзды × цена звезды / курс TON. Сейчас 1 TON ≈ ${s.ton_rub_live.toFixed(2)} ₽ (tonapi.io; запасной курс — если сервис недоступен). Улучшение фермы — 1 ${s.coin_name} = 1 TON. Пустой кошелёк — оплата в TON отключена.`;
 }
 $('s-save').onclick = async () => {
   try {
-    await api('/api/admin/settings', 'POST', { coin_name: $('s-coin').value, min_withdraw: +$('s-min').value, withdraw_enabled: $('s-wden').checked, welcome_text: $('s-welcome').value, support_username: $('s-support').value, ton_wallet: $('s-tonw').value, star_rub: +$('s-starrub').value, activation_ton: +$('s-act').value, ton_rub: +$('s-tonrub').value }); loadSettings();
+    await api('/api/admin/settings', 'POST', { coin_name: $('s-coin').value, min_withdraw: +$('s-min').value, withdraw_enabled: $('s-wden').checked, welcome_text: $('s-welcome').value, support_username: $('s-support').value, ton_wallet: $('s-tonw').value, star_rub: +$('s-starrub').value, nofee_price: +$('s-nofee').value, ...($('s-stock').value.trim() ? { stock_daily: $('s-stock').value.split(',').map(x => +x.trim() || 0) } : {}), ton_rub: +$('s-tonrub').value }); loadSettings();
     hud('Сохранено'); render(await api('/api/state'));
   } catch (e) { hud(e.message, false); }
 };
