@@ -1,7 +1,12 @@
 from aiogram import Router, F
 from aiogram.filters import CommandStart, CommandObject, Command
+import html
+import re
+import secrets
+
 from aiogram.types import (Message, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo,
-                           PreCheckoutQuery)
+                           PreCheckoutQuery, InlineQuery, InlineQueryResultArticle, InputTextMessageContent,
+                           InlineQueryResultsButton, ChosenInlineResult, CallbackQuery)
 
 from . import db, game, settings
 from .config import WEBAPP_URL, SHOP, ADMIN_IDS, ADMIN_USERNAMES
@@ -108,3 +113,103 @@ async def paid(msg: Message):
 async def paysupport(msg: Message):
     sup = settings.support()
     await msg.answer(f"По вопросам оплаты напишите в поддержку{': @' + sup if sup else ''}. Возврат Stars возможен по запросу.")
+
+
+# ---------- чеки: @бот 1.5 в любом чате ----------
+CHECK_MIN = 0.01
+
+
+def _amount(text: str):
+    m = re.fullmatch(r"\s*(\d+(?:[.,]\d{1,4})?)\s*(?:ton|тон)?\s*", text or "", re.I)
+    return float(m.group(1).replace(",", ".")) if m else None
+
+
+def _check_kb(cid, creator, amount):
+    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(
+        text=f"Получить {amount:g} {settings.coin()}", callback_data=f"c:{creator}:{round(amount * 10000)}:{cid}")]])
+
+
+@router.inline_query()
+async def inline_check(q: InlineQuery):
+    user = db.get(q.from_user.id)
+    coin = settings.coin()
+    open_btn = lambda t: InlineQueryResultsButton(text=t, start_parameter="checks")
+    if not user or user.get("banned"):
+        return await q.answer([], cache_time=0, is_personal=True, button=open_btn("Откройте бота, чтобы отправлять чеки"))
+    bal = user["balance"]
+    amount = _amount(q.query)
+    if amount is None:
+        return await q.answer([], cache_time=0, is_personal=True,
+                              button=open_btn(f"Введите сумму чека · баланс {bal:.4f} {coin}"))
+    if amount < CHECK_MIN:
+        return await q.answer([], cache_time=0, is_personal=True, button=open_btn(f"Минимум {CHECK_MIN:g} {coin}"))
+    if amount > bal:
+        return await q.answer([], cache_time=0, is_personal=True,
+                              button=open_btn(f"Недостаточно средств · баланс {bal:.4f} {coin}"))
+    cid = secrets.token_hex(6)
+    text = (f"💎 <b>Чек на {amount:g} {coin}</b>\n\n"
+            f"Нажмите кнопку ниже, чтобы получить {coin} на баланс.")
+    await q.answer([InlineQueryResultArticle(
+        id=cid, title=f"Чек на {amount:g} {coin}", description=f"Спишется с баланса · осталось {bal - amount:.4f}",
+        input_message_content=InputTextMessageContent(message_text=text, parse_mode="HTML"),
+        reply_markup=_check_kb(cid, q.from_user.id, amount))], cache_time=0, is_personal=True)
+
+
+@router.chosen_inline_result()
+async def chosen_check(r: ChosenInlineResult):
+    """Приходит, если в @BotFather включено /setinlinefeedback — тогда сумма резервируется сразу при отправке."""
+    amount = _amount(r.query)
+    if amount is None or not re.fullmatch(r"[0-9a-f]{12}", r.result_id):
+        return
+    status = db.check_reserve(r.result_id, r.from_user.id, amount)
+    if status == "failed" and r.inline_message_id:
+        try:
+            await r.bot.edit_message_text(inline_message_id=r.inline_message_id,
+                                          text="❌ Чек недействителен: недостаточно средств у отправителя.")
+        except Exception:
+            pass
+
+
+@router.callback_query(F.data.startswith("c:"))
+async def claim_check(cb: CallbackQuery):
+    try:
+        _, creator, amt, cid = cb.data.split(":")
+        creator, amount = int(creator), int(amt) / 10000
+    except ValueError:
+        return await cb.answer()
+    coin = settings.coin()
+    edit = lambda t: cb.bot.edit_message_text(inline_message_id=cb.inline_message_id, text=t, parse_mode="HTML") \
+        if cb.inline_message_id else cb.message.edit_text(t, parse_mode="HTML")
+    if cb.from_user.id == creator:
+        if db.check_cancel(cid, creator, amount) == "ok":
+            await cb.answer(f"Чек отменён, {amount:g} {coin} вернулись на баланс", show_alert=True)
+            try:
+                await edit(f"🚫 Чек на {amount:g} {coin} отменён отправителем.")
+            except Exception:
+                pass
+        else:
+            await cb.answer("Чек уже недействителен", show_alert=True)
+        return
+    u, _ = db.get_or_create(cb.from_user.id, cb.from_user.first_name, username=cb.from_user.username)
+    if u.get("banned"):
+        return await cb.answer("Аккаунт заблокирован", show_alert=True)
+    res = db.check_claim(cid, creator, amount, cb.from_user.id)
+    if res == "ok":
+        name = html.escape(cb.from_user.first_name or "")
+        await cb.answer(f"+{amount:g} {coin} на баланс!", show_alert=True)
+        try:
+            await edit(f"✅ Чек на <b>{amount:g} {coin}</b> получил {name}.")
+        except Exception:
+            pass
+        try:
+            await cb.bot.send_message(creator, f"✅ {name} получил ваш чек на {amount:g} {coin}.")
+        except Exception:
+            pass
+        try:
+            await cb.bot.send_message(cb.from_user.id, f"💎 Вы получили чек на <b>{amount:g} {coin}</b>!", reply_markup=kb())
+        except Exception:
+            pass
+    else:
+        await cb.answer({"claimed": "Чек уже получен", "cancelled": "Чек отменён отправителем",
+                         "failed": "Чек недействителен", "no_funds": "У отправителя недостаточно средств"}.get(res, "Чек недействителен"),
+                        show_alert=True)

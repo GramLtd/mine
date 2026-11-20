@@ -68,9 +68,6 @@ def missions(tg=Depends(current_user)):
     return {"missions": [
         {"id": "daily", "title": "Ежедневный бонус", "reward": DAILY_BONUS,
          "done": time.time() - user["last_daily"] < 86400},
-        *([{"id": "channel", "title": f"Подписка на {CHANNEL_USERNAME}",
-            "reward": DAILY_BONUS * 5, "done": bool(user["channel_done"]),
-            "url": f"https://t.me/{CHANNEL_USERNAME.lstrip('@')}"}] if CHANNEL_USERNAME else []),
         *[{"id": f"m{m['id']}", "title": m["title"], "reward": m["reward"], "url": m["url"],
            "done": m["id"] in done} for m in db.missions_list()],
     ]}
@@ -84,14 +81,6 @@ async def do_mission(mid: str, tg=Depends(current_user)):
             raise HTTPException(400, "Уже получено сегодня")
         db.update(user["id"], last_daily=time.time())
         db.add_balance(user["id"], DAILY_BONUS)
-    elif mid == "channel" and CHANNEL_USERNAME:
-        if user["channel_done"]:
-            raise HTTPException(400, "Уже выполнено")
-        member = await bot.get_chat_member(CHANNEL_USERNAME, user["id"])
-        if member.status in ("left", "kicked"):
-            raise HTTPException(400, "Вы не подписаны")
-        db.update(user["id"], channel_done=1)
-        db.add_balance(user["id"], DAILY_BONUS * 5)
     elif mid.startswith("m") and mid[1:].isdigit():
         m = db.mission_get(int(mid[1:]))
         if not m or not m["active"]:

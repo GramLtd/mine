@@ -235,7 +235,7 @@ textarea{width:100%;min-height:140px;border:0;outline:none;background:var(--bg2)
 <section id="home" class="page on">
   <div class="balance">
     <div class="top"><div><small>Баланс</small><b class="num" id="bal">0.0000<span>HASH</span></b></div><div style="display:flex;gap:6px;align-items:center"><div class="chip" id="lvlchip">—</div><button class="help" id="help" aria-label="Обучение">?</button></div></div>
-    <div class="row"><button class="pill" id="topopen" style="background:var(--blue);color:#fff">Пополнить</button><button class="pill" id="wdopen">Вывести</button></div>
+    <div class="row"><button class="pill" id="topopen" style="background:var(--blue);color:#fff">Пополнить</button><button class="pill" id="wdopen">Вывести</button><button class="pill" id="chkopen" style="flex:.8">Чек</button></div>
   </div>
 
   <div class="stage">
@@ -630,6 +630,11 @@ $('ms-buy').onclick = () => go('shop');
 function topSheet(on) { $('top-scrim').classList.toggle('on', on); $('top-sheet').classList.toggle('on', on); }
 $('top-scrim').onclick = $('top-cancel').onclick = () => topSheet(false);
 [1, 3, 5, 10].forEach(v => { const b = el('button', { class: 'pill', style: 'flex:1' }, `${v} TON`); b.onclick = () => $('top-amount').value = v; $('top-quick').append(b); });
+$('chkopen').onclick = () => {
+  if (!(S?.balance > 0)) return hud('Пополните баланс, чтобы отправить чек', false);
+  try { tg.switchInlineQuery ? tg.switchInlineQuery('1', ['users', 'groups', 'channels']) : hud('Напишите в любом чате @' + (BOT || 'бота') + ' и сумму'); }
+  catch { hud('В любом чате напишите @имя_бота и сумму, например 1.5', false); }
+};
 $('topopen').onclick = () => { if (!S?.ton_enabled) return hud('Пополнение временно недоступно', false); topSheet(true); };
 $('top-pay').onclick = () => {
   const a = +$('top-amount').value;
@@ -733,7 +738,7 @@ async function buy(it, btn) {
 }
 
 /* ---------- оплата в TON ---------- */
-let TON = null, tonPoll = null;
+let TON = null, tonPoll = null, BOT = '';
 function tonSheet(on) {
   $('ton-scrim').classList.toggle('on', on); $('ton-sheet').classList.toggle('on', on);
   clearInterval(tonPoll); tonPoll = null;

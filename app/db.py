@@ -57,6 +57,15 @@ def init():
         );
         CREATE INDEX IF NOT EXISTS servers_user ON servers(user_id);
         CREATE TABLE IF NOT EXISTS stock(tier INTEGER PRIMARY KEY, left INTEGER, period INTEGER);
+        CREATE TABLE IF NOT EXISTS checks(
+            nonce TEXT PRIMARY KEY,
+            creator INTEGER,
+            amount REAL,
+            status TEXT,          -- active (сумма зарезервирована), claimed, cancelled, failed
+            claimer INTEGER,
+            created REAL,
+            finished REAL
+        );
         CREATE TABLE IF NOT EXISTS ton_orders(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER,
@@ -427,3 +436,57 @@ def ref_unpaid(limit=200):
 def ref_mark_paid(uid) -> bool:
     with conn() as c:
         return c.execute("UPDATE users SET ref_paid=1 WHERE id=? AND ref_paid=0", (uid,)).rowcount == 1
+
+
+# ---------- чеки ----------
+def check_get(nonce):
+    with conn() as c:
+        r = c.execute("SELECT * FROM checks WHERE nonce=?", (nonce,)).fetchone()
+        return dict(r) if r else None
+
+
+def check_reserve(nonce, creator, amount) -> str:
+    """Чек отправлен в чат: списываем сумму с баланса создателя (резерв). Всё в одной транзакции."""
+    with conn() as c:
+        c.execute("BEGIN IMMEDIATE")
+        if c.execute("SELECT 1 FROM checks WHERE nonce=?", (nonce,)).fetchone():
+            return "exists"  # уже получен/обработан
+        ok = c.execute("UPDATE users SET balance=balance-? WHERE id=? AND balance>=?",
+                       (amount, creator, amount)).rowcount == 1
+        c.execute("INSERT INTO checks(nonce,creator,amount,status,created) VALUES(?,?,?,?,?)",
+                  (nonce, creator, amount, "active" if ok else "failed", time.time()))
+        return "active" if ok else "failed"
+
+
+def check_claim(nonce, creator, amount, claimer) -> str:
+    """Получить чек. Если резерва не было (не пришёл chosen_inline_result) — списываем с создателя сейчас."""
+    with conn() as c:
+        c.execute("BEGIN IMMEDIATE")
+        r = c.execute("SELECT status FROM checks WHERE nonce=?", (nonce,)).fetchone()
+        if r and r["status"] != "active":
+            return r["status"]
+        if not r:
+            if c.execute("UPDATE users SET balance=balance-? WHERE id=? AND balance>=?",
+                         (amount, creator, amount)).rowcount != 1:
+                return "no_funds"
+            c.execute("INSERT INTO checks(nonce,creator,amount,status,created) VALUES(?,?,?,?,?)",
+                      (nonce, creator, amount, "active", time.time()))
+        c.execute("UPDATE checks SET status='claimed', claimer=?, finished=? WHERE nonce=?", (claimer, time.time(), nonce))
+        c.execute("UPDATE users SET balance=balance+? WHERE id=?", (amount, claimer))
+        return "ok"
+
+
+def check_cancel(nonce, creator, amount) -> str:
+    """Создатель нажал на свой чек — отмена и возврат суммы, если она была зарезервирована."""
+    with conn() as c:
+        c.execute("BEGIN IMMEDIATE")
+        r = c.execute("SELECT status FROM checks WHERE nonce=?", (nonce,)).fetchone()
+        if r and r["status"] != "active":
+            return r["status"]
+        if r:
+            c.execute("UPDATE users SET balance=balance+? WHERE id=?", (amount, creator))
+            c.execute("UPDATE checks SET status='cancelled', finished=? WHERE nonce=?", (time.time(), nonce))
+        else:
+            c.execute("INSERT INTO checks(nonce,creator,amount,status,created,finished) VALUES(?,?,?,'cancelled',?,?)",
+                      (nonce, creator, amount, time.time(), time.time()))
+        return "ok"
