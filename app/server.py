@@ -180,7 +180,7 @@ def _checked(user, item):
 
 @api.post("/api/buy")
 def buy_balance(body: InvoiceIn, tg=Depends(current_user)):
-    """Оплата с баланса (1 монета = 1 TON)."""
+    """Оплата с баланса."""
     user = load(tg)
     if body.item == "topup":
         raise HTTPException(400, "Нет такого товара")

@@ -254,7 +254,7 @@ async function loadSettings() {
   loadMs();
   const s = await api('/api/admin/settings');
   $('s-coin').value = s.coin_name; $('s-min').value = s.min_withdraw; $('s-wden').checked = s.withdraw_enabled; $('s-welcome').value = s.welcome_text; $('s-support').value = s.support_username ? '@' + s.support_username : '';
-  $('s-tonw').value = s.ton_wallet || ''; $('s-starrub').value = s.star_rub; $('s-nofee').value = s.nofee_price; $('s-stock').value = (S?.servers || []).map(x => x.daily ?? '').join(', '); $('s-tonrub').value = s.ton_rub; $('s-ton-note').textContent = `Цены в TON = звёзды × цена звезды / курс TON. Сейчас 1 TON ≈ ${s.ton_rub_live.toFixed(2)} ₽ (tonapi.io; запасной курс — если сервис недоступен). Улучшение фермы — 1 ${s.coin_name} = 1 TON. Пустой кошелёк — оплата в TON отключена.`;
+  $('s-tonw').value = s.ton_wallet || ''; $('s-starrub').value = s.star_rub; $('s-nofee').value = s.nofee_price; $('s-stock').value = (S?.servers || []).map(x => x.daily ?? '').join(', '); $('s-tonrub').value = s.ton_rub; $('s-ton-note').textContent = `Цены в TON = звёзды × цена звезды / курс TON. Сейчас 1 TON ≈ ${s.ton_rub_live.toFixed(2)} ₽ (tonapi.io; запасной курс — если сервис недоступен). Пустой кошелёк — оплата в TON отключена.`;
 }
 $('s-save').onclick = async () => {
   try {

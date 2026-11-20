@@ -342,14 +342,10 @@ textarea{width:100%;min-height:140px;border:0;outline:none;background:var(--bg2)
 <!-- ============ МАГАЗИН ============ -->
 <section id="shop" class="page">
   <h1 class="large-title">Магазин</h1>
-  <p class="lead">Арендуйте серверы для майнинга и ускоряйте их бустами.</p>
+  <p class="lead">Арендуйте серверы для майнинга и выбирайте скин вентилятора.</p>
   <div class="caption" id="s-srv-cap">Серверы</div>
   <div class="group" id="s-servers"></div>
   <p class="footnote" id="s-srv-note"></p>
-  <div class="caption">Бусты</div>
-  <div class="group" id="s-boost"></div>
-  <div class="caption">Хранилище</div>
-  <div class="group" id="s-storage"></div>
   <div class="caption">Скины вентилятора</div>
   <div class="group" id="s-skin"></div>
   <p class="footnote">Любую покупку можно оплатить с баланса, TON-кошельком или Telegram Stars.</p>
@@ -424,7 +420,7 @@ textarea{width:100%;min-height:140px;border:0;outline:none;background:var(--bg2)
     <label class="cell field noicon"><span>Сумма</span><input id="top-amount" type="number" step="any" min="0.1" inputmode="decimal" placeholder="0"></label>
   </div>
   <div id="top-quick" style="display:flex;gap:8px;margin-top:10px"></div>
-  <p class="footnote">1 TON = 1 на балансе. С баланса можно запускать майнинг, улучшать сервер и покупать всё в магазине.</p>
+  <p class="footnote">С баланса можно арендовать и улучшать серверы и покупать всё в магазине.</p>
   <button class="btn primary" id="top-pay" style="width:100%;margin-top:16px">Пополнить</button>
 </div>
 
@@ -687,7 +683,7 @@ const SKIN_BG = { skin_gold: '#F5B83D', skin_emerald: '#30D158', skin_crimson: '
 function payBtns(it) { const b = el('button', { class: 'pill num' }, `${it.ton} TON`); b.onclick = () => pay(it); return b; }
 function starBtn(it) { const b = el('button', { class: 'pill star num' }); b.innerHTML = TGSTAR; b.append(String(it.stars)); b.onclick = () => buy(it, b); return b; }
 function renderShop(s) {
-  ['boost', 'storage', 'skin', 'servers'].forEach(c => $('s-' + c).innerHTML = '');
+  ['skin', 'servers'].forEach(c => $('s-' + c).innerHTML = '');
   const hrs = Math.max(0, Math.round((s.restock_at - Date.now() / 1000) / 3600));
   $('s-srv-cap').textContent = s.first_discount ? `Серверы · первый −${Math.round(s.first_discount * 100)}%` : 'Серверы';
   $('s-srv-note').textContent = `Аренда на ${s.rent_days} дней. Склад пополняется каждый день в 12:00 МСК (через ${hrs} ч).` + (s.fee ? ` Доход указан с учётом комиссии ${Math.round(s.fee * 100)}%.` : '');
@@ -847,7 +843,7 @@ const SPOTS = [
   ['.stage', 'Майнинг', 'Вентилятор крутится, пока работают серверы. Кольцо показывает, насколько заполнено хранилище.'],
   ['#claim', 'Забрать', 'Переводит намайненное на баланс и освобождает хранилище.'],
   ['#tabbar [data-p="myservers"]', 'Мои серверы', 'Срок аренды, доход, улучшение и продление каждого сервера.'],
-  ['#tabbar [data-p="shop"]', 'Магазин', 'Аренда серверов, бусты и скины. Начните отсюда!'],
+  ['#tabbar [data-p="shop"]', 'Магазин', 'Аренда серверов и скины вентилятора. Начните отсюда!'],
 ];
 let tIdx = 0, tMode = 'slides', tBusy = false, tFirstSpot = true;
 const wait = ms => new Promise(r => setTimeout(r, ms));
