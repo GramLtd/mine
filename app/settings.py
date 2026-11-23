@@ -123,7 +123,7 @@ def all_settings() -> dict:
         "maintenance_text": db.get_setting("maintenance_text", ""),
         "reward_share": float(db.get_setting("reward_share", 0.2)),
         "reward_cap": float(db.get_setting("reward_cap", 10)),
-        "accrual_ratio": float(db.get_setting("accrual_ratio", 0.7)),
+        "accrual_speed": float(db.get_setting("accrual_speed", 1.0)),
         "ton_rub": ton_rub_fallback(),
         "ton_rub_live": ton_rub(),
     }

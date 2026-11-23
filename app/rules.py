@@ -36,7 +36,7 @@ RULES = """<b>TonCry — Rules of the Service</b>
 <b>4. Game servers</b>
 4.1. Game servers are <b>virtual game items</b>, not a rental of real hardware.
 4.2. <b>No real cryptocurrency mining takes place.</b> {coin} are accrued by the game mechanics.
-4.3. A Game server is rented for 30 days. Its {coin} output varies randomly from hour to hour (from 50% to 150% of its base rate); on average, over the rental period it accrues {coin} worth less than its rental price. Game servers can be upgraded and renewed; their number is limited and restocked daily.
+4.3. A Game server is rented for 30 days. Its {coin} output varies randomly from hour to hour (from 50% to 150% of its base rate). Accrued {coin} are in-game coins only: they have no monetary value and do not entitle the User to any payment. Game servers can be upgraded and renewed; their number is limited and restocked daily.
 4.4. The Service withholds a game fee of 15% of accrued {coin}. The fee can be disabled on the terms shown in the Service.
 4.5. Accrued {coin} collect in Storage for up to 24 hours; the User collects them by tapping “Claim”.
 

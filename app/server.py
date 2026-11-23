@@ -567,7 +567,7 @@ class SettingsIn(BaseModel):
     maintenance_text: str | None = None
     reward_share: float | None = None
     reward_cap: float | None = None
-    accrual_ratio: float | None = None
+    accrual_speed: float | None = None
     ref_bonus: float | None = None
     stock_daily: list[int] | None = None
     ton_rub: float | None = None
@@ -618,9 +618,9 @@ def a_set_settings(body: SettingsIn, _=Depends(admin)):
         db.set_setting("reward_share", min(0.5, max(0.0, body.reward_share)))
     if body.reward_cap is not None:
         db.set_setting("reward_cap", max(0.0, body.reward_cap))
-    if body.accrual_ratio is not None:  # сколько от цены сервер начисляет за срок аренды (до 90%)
+    if body.accrual_speed is not None:  # множитель скорости начисления TON CRY (1 = как в таблице, до 3)
         from .config import ACCRUAL_MAX
-        db.set_setting("accrual_ratio", min(ACCRUAL_MAX, max(0.0, body.accrual_ratio)))
+        db.set_setting("accrual_speed", min(ACCRUAL_MAX, max(0.0, body.accrual_speed)))
     if body.nofee_price is not None:
         db.set_setting("nofee_price", max(0.01, body.nofee_price))
     if body.stock_daily is not None:

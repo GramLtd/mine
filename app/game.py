@@ -7,21 +7,21 @@ from datetime import datetime, timedelta, timezone
 from . import db, settings, i18n, rewards
 from .rules import REVISION as RULES_REV
 from .config import BOT_TOKEN
-from .config import (SERVERS, RENT_DAYS, ACCRUAL_RATIO, ACCRUAL_MAX, FIRST_DISCOUNT, UPGRADE_MARKUP, MINING_FEE, NOFEE_PRICE,
+from .config import (SERVERS, RENT_DAYS, ACCRUAL_SPEED, ACCRUAL_MAX, FIRST_DISCOUNT, UPGRADE_MARKUP, MINING_FEE, NOFEE_PRICE,
                      STOCK_RESET_HOUR_MSK, COIN_PER_GH_PER_SEC, STORAGE_HOURS, SHOP, STORAGE_ITEMS)
 
 MSK = timezone(timedelta(hours=3))
 
 
 # ---------- тарифы ----------
-def accrual_ratio() -> float:
-    return min(ACCRUAL_MAX, max(0.0, float(db.get_setting("accrual_ratio", ACCRUAL_RATIO))))
+def accrual_speed() -> float:
+    return min(ACCRUAL_MAX, max(0.0, float(db.get_setting("accrual_speed", ACCRUAL_SPEED))))
 
 
 def tier_hashrate(t) -> int:
-    """GH/s: за срок аренды сервер начисляет accrual_ratio() × цена в TON CRY (до комиссии)."""
-    price = SERVERS[t][2]
-    return round(price * accrual_ratio() / RENT_DAYS / 86400 / COIN_PER_GH_PER_SEC)
+    """GH/s: сервер начисляет свою цену в TON CRY за «окупаемость» дней из таблицы (× скорость из админки)."""
+    _c, _r, price, payback, _s = SERVERS[t]
+    return round(price / payback * accrual_speed() / 86400 / COIN_PER_GH_PER_SEC)
 
 
 def tier_price(t) -> float:
@@ -336,5 +336,5 @@ def state(user, is_admin=False) -> dict:
         "tutorial_done": bool(user.get("tutorial_done")),
         "accepted": user.get("accepted_rev") == RULES_REV,
         "rewards": rewards.current(user),
-        "accrual": accrual_ratio(),
+        "accrual": accrual_speed(),
     }
