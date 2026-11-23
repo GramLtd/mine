@@ -66,6 +66,16 @@ def init():
             created REAL,
             finished REAL
         );
+        CREATE TABLE IF NOT EXISTS mchecks(
+            nonce TEXT PRIMARY KEY,
+            creator INTEGER,
+            amount REAL,          -- сумма одной активации
+            total INTEGER,        -- сколько активаций
+            claimed INTEGER DEFAULT 0,
+            status TEXT,          -- active, done, cancelled, failed
+            created REAL
+        );
+        CREATE TABLE IF NOT EXISTS mcheck_claims(nonce TEXT, user_id INTEGER, created REAL, PRIMARY KEY(nonce, user_id));
         CREATE TABLE IF NOT EXISTS ton_orders(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER,
@@ -494,3 +504,62 @@ def check_cancel(nonce, creator, amount) -> str:
             c.execute("INSERT INTO checks(nonce,creator,amount,status,created,finished) VALUES(?,?,?,'cancelled',?,?)",
                       (nonce, creator, amount, time.time(), time.time()))
         return "ok"
+
+
+# ---------- мультичеки: одна ссылка, N активаций по amount ----------
+def mcheck_get(nonce):
+    with conn() as c:
+        r = c.execute("SELECT * FROM mchecks WHERE nonce=?", (nonce,)).fetchone()
+        return dict(r) if r else None
+
+
+def mcheck_reserve(nonce, creator, amount, total) -> str:
+    with conn() as c:
+        c.execute("BEGIN IMMEDIATE")
+        if c.execute("SELECT 1 FROM mchecks WHERE nonce=?", (nonce,)).fetchone():
+            return "exists"
+        s = amount * total
+        ok = c.execute("UPDATE users SET balance=balance-? WHERE id=? AND balance>=?", (s, creator, s)).rowcount == 1
+        c.execute("INSERT INTO mchecks(nonce,creator,amount,total,status,created) VALUES(?,?,?,?,?,?)",
+                  (nonce, creator, amount, total, "active" if ok else "failed", time.time()))
+        return "active" if ok else "failed"
+
+
+def mcheck_claim(nonce, creator, amount, total, claimer):
+    """Возвращает (статус, сколько активаций уже использовано)."""
+    with conn() as c:
+        c.execute("BEGIN IMMEDIATE")
+        r = c.execute("SELECT * FROM mchecks WHERE nonce=?", (nonce,)).fetchone()
+        if not r:  # резерва не было — списываем всю сумму мультичека при первой активации
+            s = amount * total
+            if c.execute("UPDATE users SET balance=balance-? WHERE id=? AND balance>=?", (s, creator, s)).rowcount != 1:
+                return "no_funds", 0
+            c.execute("INSERT INTO mchecks(nonce,creator,amount,total,status,created) VALUES(?,?,?,?,?,?)",
+                      (nonce, creator, amount, total, "active", time.time()))
+            r = c.execute("SELECT * FROM mchecks WHERE nonce=?", (nonce,)).fetchone()
+        if r["status"] != "active":
+            return r["status"], r["claimed"]
+        if c.execute("SELECT 1 FROM mcheck_claims WHERE nonce=? AND user_id=?", (nonce, claimer)).fetchone():
+            return "already", r["claimed"]
+        c.execute("INSERT INTO mcheck_claims VALUES(?,?,?)", (nonce, claimer, time.time()))
+        n = r["claimed"] + 1
+        c.execute("UPDATE mchecks SET claimed=?, status=? WHERE nonce=?", (n, "done" if n >= r["total"] else "active", nonce))
+        c.execute("UPDATE users SET balance=balance+? WHERE id=?", (r["amount"], claimer))
+        return "ok", n
+
+
+def mcheck_cancel(nonce, creator, amount, total):
+    """Отмена создателем: остаток (неактивированные доли) возвращается. Возвращает (статус, сумма возврата)."""
+    with conn() as c:
+        c.execute("BEGIN IMMEDIATE")
+        r = c.execute("SELECT * FROM mchecks WHERE nonce=?", (nonce,)).fetchone()
+        if r and r["status"] != "active":
+            return r["status"], 0
+        if not r:
+            c.execute("INSERT INTO mchecks(nonce,creator,amount,total,status,created) VALUES(?,?,?,?,'cancelled',?)",
+                      (nonce, creator, amount, total, time.time()))
+            return "ok", 0
+        back = r["amount"] * (r["total"] - r["claimed"])
+        c.execute("UPDATE users SET balance=balance+? WHERE id=?", (back, creator))
+        c.execute("UPDATE mchecks SET status='cancelled' WHERE nonce=?", (nonce,))
+        return "ok", back

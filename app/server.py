@@ -577,7 +577,7 @@ def _rub(amount: float) -> str:
 
 
 @api.get("/check/{amount}.jpg")
-def check_image(amount: str, thumb: int = 0):
+def check_image(amount: str, thumb: int = 0, n: int = 1):
     from fastapi import Response
     from . import checkimg
     try:
@@ -586,7 +586,8 @@ def check_image(amount: str, thumb: int = 0):
     except (ValueError, AssertionError):
         raise HTTPException(404)
     txt = f"{a:g}"
-    data = checkimg.thumb(txt, settings.coin()) if thumb else checkimg.render(txt, settings.coin(), _rub(a))
+    n = max(1, min(n, 1000))
+    data = checkimg.thumb(txt, settings.coin()) if thumb else checkimg.render(txt, settings.coin(), _rub(a), n)
     return Response(data, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=86400"})
 
 

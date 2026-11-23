@@ -141,9 +141,20 @@ async def paysupport(msg: Message):
 CHECK_MIN = 0.01
 
 
+MCHECK_MAX = 1000
+_Q = re.compile(r"\s*(\d+(?:[.,]\d{1,4})?)\s*(?:ton|тон)?\s*(?:[xх×*]\s*(\d{1,4})\s*(?:шт|чел|pcs)?\.?)?\s*", re.I)
+
+
+def _parse(text: str):
+    """«1.5» → (1.5, 1); «0.5 x10» → (0.5, 10) — мультичек на 10 активаций."""
+    m = _Q.fullmatch(text or "")
+    if not m:
+        return None, 1
+    return float(m.group(1).replace(",", ".")), int(m.group(2) or 1)
+
+
 def _amount(text: str):
-    m = re.fullmatch(r"\s*(\d+(?:[.,]\d{1,4})?)\s*(?:ton|тон)?\s*", text or "", re.I)
-    return float(m.group(1).replace(",", ".")) if m else None
+    return _parse(text)[0]
 
 
 def _check_kb(cid, creator, amount, lang="ru"):
@@ -164,36 +175,61 @@ async def inline_check(q: InlineQuery):
     if not user or user.get("banned"):
         return await q.answer([], cache_time=0, is_personal=True, button=open_btn(L(lang, "Откройте бота, чтобы отправлять чеки", "Open the bot to send checks")))
     bal = user["balance"]
-    amount = _amount(q.query)
+    amount, n = _parse(q.query)
     if amount is None:
         return await q.answer([], cache_time=0, is_personal=True,
-                              button=open_btn(L(lang, f"Введите сумму чека · баланс {bal:.4f} {coin}", f"Enter check amount · balance {bal:.4f} {coin}")))
+                              button=open_btn(L(lang, f"Сумма, или «0.5 x10» — мультичек · баланс {bal:.4f}", f"Amount, or “0.5 x10” for a multi-check · balance {bal:.4f}")))
     if amount < CHECK_MIN:
         return await q.answer([], cache_time=0, is_personal=True, button=open_btn(L(lang, f"Минимум {CHECK_MIN:g} {coin}", f"Minimum {CHECK_MIN:g} {coin}")))
-    if amount > bal:
+    if not 1 <= n <= MCHECK_MAX:
+        return await q.answer([], cache_time=0, is_personal=True, button=open_btn(L(lang, f"Активаций: от 1 до {MCHECK_MAX}", f"Activations: 1 to {MCHECK_MAX}")))
+    total = round(amount * n, 4)
+    if total > bal:
         return await q.answer([], cache_time=0, is_personal=True,
-                              button=open_btn(L(lang, f"Недостаточно средств · баланс {bal:.4f} {coin}", f"Insufficient funds · balance {bal:.4f} {coin}")))
-    cid = secrets.token_hex(6)
+                              button=open_btn(L(lang, f"Недостаточно средств · нужно {total:g}, баланс {bal:.4f}", f"Insufficient funds · need {total:g}, balance {bal:.4f}")))
     from .server import _rub
-    rub = _rub(amount)
-    caption = L(lang, f"🎁 Чек на 💎 <b>{amount:g} {coin}</b>" + (f" (≈ {rub} ₽)" if rub else "") + ".",
-                f"🎁 Check for 💎 <b>{amount:g} {coin}</b>.")
     base = WEBAPP_URL.rstrip("/")
-    await q.answer([InlineQueryResultPhoto(
-        id=cid, photo_url=f"{base}/check/{amount:g}.jpg", thumbnail_url=f"{base}/check/{amount:g}.jpg?thumb=1",
-        photo_width=1280, photo_height=720, title=L(lang, f"Чек на {amount:g} {coin}", f"Check for {amount:g} {coin}"),
-        description=L(lang, f"Спишется с баланса · осталось {bal - amount:.4f}", f"Paid from balance · {bal - amount:.4f} left"),
-        caption=caption, parse_mode="HTML",
-        reply_markup=_check_kb(cid, q.from_user.id, amount, lang))], cache_time=0, is_personal=True)
+    if n == 1:
+        cid = secrets.token_hex(6)
+        rub = _rub(amount)
+        caption = L(lang, f"🎁 Чек на 💎 <b>{amount:g} {coin}</b>" + (f" (≈ {rub} ₽)" if rub else "") + ".",
+                    f"🎁 Check for 💎 <b>{amount:g} {coin}</b>.")
+        res = InlineQueryResultPhoto(
+            id=cid, photo_url=f"{base}/check/{amount:g}.jpg", thumbnail_url=f"{base}/check/{amount:g}.jpg?thumb=1",
+            photo_width=1280, photo_height=720, title=L(lang, f"Чек на {amount:g} {coin}", f"Check for {amount:g} {coin}"),
+            description=L(lang, f"Спишется с баланса · осталось {bal - amount:.4f}", f"Paid from balance · {bal - amount:.4f} left"),
+            caption=caption, parse_mode="HTML", reply_markup=_check_kb(cid, q.from_user.id, amount, lang))
+    else:
+        cid = "m" + secrets.token_hex(6)[:11]
+        caption = L(lang, f"🎁 Мультичек: 💎 <b>{amount:g} {coin}</b> каждому — для {n} человек.\nНажмите кнопку, чтобы получить.",
+                    f"🎁 Multi-check: 💎 <b>{amount:g} {coin}</b> each — for {n} people.\nTap the button to claim.")
+        res = InlineQueryResultPhoto(
+            id=cid, photo_url=f"{base}/check/{amount:g}.jpg?n={n}", thumbnail_url=f"{base}/check/{amount:g}.jpg?thumb=1",
+            photo_width=1280, photo_height=720,
+            title=L(lang, f"Мультичек: {amount:g} {coin} × {n}", f"Multi-check: {amount:g} {coin} × {n}"),
+            description=L(lang, f"Спишется {total:g} · осталось {bal - total:.4f}", f"{total:g} will be charged · {bal - total:.4f} left"),
+            caption=caption, parse_mode="HTML", reply_markup=_mcheck_kb(cid, q.from_user.id, amount, n, 0, lang))
+    await q.answer([res], cache_time=0, is_personal=True)
+
+
+def _mcheck_kb(cid, creator, amount, total, claimed, lang="ru"):
+    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(
+        text=L(lang, f"💎 Получить {amount:g} {settings.coin()} · {claimed}/{total}", f"💎 Claim {amount:g} {settings.coin()} · {claimed}/{total}"),
+        callback_data=f"m:{creator}:{round(amount * 10000)}:{total}:{cid}")]])
 
 
 @router.chosen_inline_result()
 async def chosen_check(r: ChosenInlineResult):
     """Приходит, если в @BotFather включено /setinlinefeedback — тогда сумма резервируется сразу при отправке."""
-    amount = _amount(r.query)
-    if amount is None or not re.fullmatch(r"[0-9a-f]{12}", r.result_id):
+    amount, n = _parse(r.query)
+    if amount is None:
         return
-    status = db.check_reserve(r.result_id, r.from_user.id, amount)
+    if re.fullmatch(r"m[0-9a-f]{11}", r.result_id) and n > 1:
+        status = db.mcheck_reserve(r.result_id, r.from_user.id, amount, n)
+    elif re.fullmatch(r"[0-9a-f]{12}", r.result_id):
+        status = db.check_reserve(r.result_id, r.from_user.id, amount)
+    else:
+        return
     if status == "failed" and r.inline_message_id:
         try:
             me = await r.bot.me()
@@ -256,3 +292,61 @@ async def claim_check(cb: CallbackQuery):
         ru_m, en_m = msgs.get(res, msgs["failed"])
         await cb.answer(L(lu, ru_m, en_m),
                         show_alert=True)
+
+
+@router.callback_query(F.data.startswith("m:"))
+async def claim_mcheck(cb: CallbackQuery):
+    try:
+        _, creator, amt, total, cid = cb.data.split(":")
+        creator, amount, total = int(creator), int(amt) / 10000, int(total)
+        assert re.fullmatch(r"m[0-9a-f]{11}", cid) and 1 < total <= MCHECK_MAX
+    except (ValueError, AssertionError):
+        return await cb.answer()
+    coin = settings.coin()
+    me = await cb.bot.me()
+    lc, lu = lang_of(creator), lang_of(cb.from_user.id, cb.from_user)
+
+    async def set_kb(mk):
+        try:
+            if cb.inline_message_id:
+                await cb.bot.edit_message_reply_markup(inline_message_id=cb.inline_message_id, reply_markup=mk)
+            else:
+                await cb.message.edit_reply_markup(reply_markup=mk)
+        except Exception:
+            pass
+
+    if cb.from_user.id == creator:
+        st, back = db.mcheck_cancel(cid, creator, amount, total)
+        if st == "ok":
+            await cb.answer(L(lu, f"Мультичек отменён, {back:g} {coin} вернулись на баланс", f"Multi-check cancelled, {back:g} {coin} returned"), show_alert=True)
+            await set_kb(_done_kb(L(lc, "🚫 Мультичек отменён", "🚫 Multi-check cancelled"), me.username))
+        else:
+            await cb.answer(L(lu, "Мультичек уже недействителен", "This multi-check is no longer valid"), show_alert=True)
+        return
+    u, _ = db.get_or_create(cb.from_user.id, cb.from_user.first_name, username=cb.from_user.username)
+    if u.get("banned"):
+        return await cb.answer(L(lu, "Аккаунт заблокирован", "Account blocked"), show_alert=True)
+    st, n = db.mcheck_claim(cid, creator, amount, total, cb.from_user.id)
+    if st == "ok":
+        await cb.answer(L(lu, f"+{amount:g} {coin} на баланс!", f"+{amount:g} {coin} added to your balance!"), show_alert=True)
+        await set_kb(_done_kb(L(lc, f"✅ Все {total} активаций получены", f"✅ All {total} claimed"), me.username) if n >= total
+                     else _mcheck_kb(cid, creator, amount, total, n, lc))
+        try:
+            await cb.bot.send_message(cb.from_user.id, L(lu, f"💎 Вы получили <b>{amount:g} {coin}</b> из мультичека!",
+                                                         f"💎 You received <b>{amount:g} {coin}</b> from a multi-check!"), reply_markup=kb(lu))
+        except Exception:
+            pass
+        if n >= total:
+            try:
+                await cb.bot.send_message(creator, L(lc, f"✅ Ваш мультичек {amount:g} {coin} × {total} полностью получен.",
+                                                     f"✅ Your multi-check {amount:g} {coin} × {total} has been fully claimed."))
+            except Exception:
+                pass
+    else:
+        msgs = {"already": ("Вы уже получили этот мультичек", "You’ve already claimed this multi-check"),
+                "done": ("Все активации уже получены", "All activations have been claimed"),
+                "cancelled": ("Мультичек отменён отправителем", "Multi-check cancelled by sender"),
+                "failed": ("Мультичек недействителен", "Multi-check is invalid"),
+                "no_funds": ("У отправителя недостаточно средств", "Sender has insufficient funds")}
+        ru_m, en_m = msgs.get(st, msgs["failed"])
+        await cb.answer(L(lu, ru_m, en_m), show_alert=True)

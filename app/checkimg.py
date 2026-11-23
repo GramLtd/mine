@@ -24,7 +24,7 @@ def _ton_logo(d: ImageDraw.ImageDraw, cx, cy, r, fill, line):
 
 
 @lru_cache(maxsize=256)
-def render(amount: str, coin: str, rub: str = "") -> bytes:
+def render(amount: str, coin: str, rub: str = "", n: int = 1) -> bytes:
     # фон: диагональный градиент
     img = Image.new("RGB", (W, H))
     c1, c2 = (0, 152, 234), (88, 70, 226)
@@ -63,7 +63,7 @@ def render(amount: str, coin: str, rub: str = "") -> bytes:
     d = ImageDraw.Draw(img)
     d.text(((W - tw) / 2, H * .44), amount, font=f, fill=(255, 255, 255), anchor="lm")
     # подпись: значок + «1 TON» (+ ≈ ₽)
-    sub = f"{amount} {coin}" + (f"  ·  ≈ {rub} ₽" if rub else "")
+    sub = f"{amount} {coin}" + (f"  ×  {n}" if n > 1 else "") + (f"  ·  ≈ {rub} ₽" if rub and n == 1 else "")
     f2 = _font("Inter-SemiBold.otf", 58)
     sw = d.textlength(sub, font=f2)
     r = 30
