@@ -66,6 +66,13 @@ def init():
             created REAL,
             finished REAL
         );
+        CREATE TABLE IF NOT EXISTS balance_buys(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            item TEXT,
+            amount REAL,
+            created REAL
+        );
         CREATE TABLE IF NOT EXISTS mchecks(
             nonce TEXT PRIMARY KEY,
             creator INTEGER,
@@ -221,7 +228,41 @@ def stats():
             "coins_total": q("SELECT COALESCE(SUM(balance),0) FROM users"),
             "wd_pending": q("SELECT COUNT(*) FROM withdrawals WHERE status='pending'"),
             "wd_paid": q("SELECT COALESCE(SUM(amount),0) FROM withdrawals WHERE status='paid'"),
+            # TON: пополнения и покупки через кошелёк
+            "ton_total": q("SELECT COALESCE(SUM(nano),0)/1e9 FROM ton_orders WHERE status='paid'"),
+            "ton_24h": q("SELECT COALESCE(SUM(nano),0)/1e9 FROM ton_orders WHERE status='paid' AND paid>?", day),
+            "ton_topups": q("SELECT COALESCE(SUM(nano),0)/1e9 FROM ton_orders WHERE status='paid' AND item='topup'"),
+            "ton_buys": q("SELECT COALESCE(SUM(nano),0)/1e9 FROM ton_orders WHERE status='paid' AND item!='topup'"),
+            "ton_count": q("SELECT COUNT(*) FROM ton_orders WHERE status='paid'"),
+            # покупки с баланса
+            "bal_total": q("SELECT COALESCE(SUM(amount),0) FROM balance_buys"),
+            "bal_24h": q("SELECT COALESCE(SUM(amount),0) FROM balance_buys WHERE created>?", day),
+            "bal_count": q("SELECT COUNT(*) FROM balance_buys"),
+            # обязательства: сколько игроки могут вывести прямо сейчас
+            "wd_pending_sum": q("SELECT COALESCE(SUM(amount),0) FROM withdrawals WHERE status='pending'"),
+            "wd_paid_24h": q("SELECT COALESCE(SUM(amount),0) FROM withdrawals WHERE status='paid' AND processed>?", day),
+            "stars_refunded": q("SELECT COALESCE(SUM(stars),0) FROM payments WHERE refunded=1"),
         }
+
+
+def balance_buy_log(uid, item, amount):
+    with conn() as c:
+        c.execute("INSERT INTO balance_buys(user_id,item,amount,created) VALUES(?,?,?,?)", (uid, item, amount, time.time()))
+
+
+def all_payments(limit=100):
+    """Все платежи вместе: Stars, TON (кошелёк), баланс — по убыванию времени."""
+    with conn() as c:
+        return [dict(r) for r in c.execute("""
+            SELECT * FROM (
+              SELECT 'stars' AS method, p.charge_id AS ref, p.user_id, p.item, p.stars AS stars, NULL AS ton, p.created, p.refunded
+                FROM payments p
+              UNION ALL
+              SELECT 'ton', CAST(o.id AS TEXT), o.user_id, o.item, NULL, o.nano/1e9, o.paid, 0 FROM ton_orders o WHERE o.status='paid'
+              UNION ALL
+              SELECT 'balance', CAST(b.id AS TEXT), b.user_id, b.item, NULL, b.amount, b.created, 0 FROM balance_buys b
+            ) x LEFT JOIN (SELECT id AS uid, name, username FROM users) u ON u.uid = x.user_id
+            ORDER BY x.created DESC LIMIT ?""", (limit,))]
 
 
 def search(q: str, limit=30):

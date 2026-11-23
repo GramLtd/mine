@@ -5,7 +5,7 @@
     <button data-a="overview" class="on">Обзор</button>
     <button data-a="users">Игроки</button>
     <button data-a="wd">Выводы</button>
-    <button data-a="pays">Stars</button>
+    <button data-a="pays">Платежи</button>
     <button data-a="set">Ещё</button>
   </div>
 
@@ -141,10 +141,12 @@ async function loadStats() {
   const tiles = [
     ['people', 'Игроки', s.users.toLocaleString('ru'), `+${s.new_24h} за сутки`],
     ['bolt', 'Активные 24ч', s.active_24h.toLocaleString('ru')],
-    ['tgstar', 'Stars всего', s.stars_total.toLocaleString('ru'), `+${s.stars_24h} за сутки`],
-    ['bag', 'Покупок', s.payments.toLocaleString('ru')],
-    ['down', 'Выводы ждут', s.wd_pending.toLocaleString('ru')],
-    ['up', 'Выплачено', `${fmt(s.wd_paid, 2)}`],
+    ['tgstar', 'Stars', s.stars_total.toLocaleString('ru'), `+${s.stars_24h} за сутки · ${s.payments} покупок`],
+    ['paper', 'TON получено', fmt(s.ton_total, 2), `+${fmt(s.ton_24h, 2)} за сутки · ${s.ton_count} платежей`],
+    ['bag', 'TON: пополнения', fmt(s.ton_topups, 2), `покупки кошельком: ${fmt(s.ton_buys, 2)}`],
+    ['bag', 'Покупки с баланса', fmt(s.bal_total, 2), `+${fmt(s.bal_24h, 2)} за сутки · ${s.bal_count} шт`],
+    ['up', 'Выплачено', fmt(s.wd_paid, 2), `+${fmt(s.wd_paid_24h, 2)} за сутки`],
+    ['down', 'Выводы ждут', s.wd_pending.toLocaleString('ru'), `на ${fmt(s.wd_pending_sum, 2)}`],
   ];
   const g = $('stats'); g.innerHTML = '';
   tiles.forEach(([ic, t, v, d]) => {
@@ -152,7 +154,9 @@ async function loadStats() {
     const vb = el('b', { class: 'num' }); if (ic === 'tgstar') vb.innerHTML = TGSTAR + ' '; vb.append(v);
     g.append(el('div', { class: 'tile' }, sm, vb, d ? el('i', {}, d) : null));
   });
-  g.append(el('div', { class: 'tile', style: 'grid-column:1/-1' }, el('small', {}, 'Монет на балансах'), el('b', { class: 'num' }, `${fmt(s.coins_total, 2)} ${S?.coin || ''}`)));
+  g.append(el('div', { class: 'tile', style: 'grid-column:1/-1' }, el('small', {}, 'На балансах игроков + ждут вывода'),
+    el('b', { class: 'num' }, `${fmt(s.coins_total + s.wd_pending_sum, 2)} ${S?.coin || ''}`),
+    el('i', {}, `Чистый приток TON: ${fmt(s.ton_total - s.wd_paid, 2)} (получено ${fmt(s.ton_total, 2)} − выплачено ${fmt(s.wd_paid, 2)})`)));
 }
 
 let qT;
@@ -202,15 +206,23 @@ $('e-grant').onclick = async () => {
 async function loadPays() {
   const { payments } = await api('/api/admin/payments'); const box = $('plist'); box.innerHTML = '';
   if (!payments.length) box.append(el('div', { class: 'empty' }, 'Платежей пока нет'));
+  const M = { stars: ['Stars', 'var(--orange)', 'tgstar'], ton: ['TON-кошелёк', '#0098EA', 'paper'], balance: ['Баланс', 'var(--green)', 'bag'] };
   payments.forEach(p => {
-    const b = el('button', { class: 'pill', style: p.refunded ? '' : 'color:var(--red)', disabled: p.refunded ? '' : false }, p.refunded ? 'Возвращён' : 'Вернуть');
-    b.onclick = () => tg.showConfirm ? tg.showConfirm(`Вернуть ${p.stars} Stars пользователю ${p.name || p.user_id}?`, ok => ok && refund(p)) : refund(p);
-    box.append(el('div', { class: 'cell' }, (() => { const d = el('div', { class: 'ic', style: 'background:var(--fill)' }); d.innerHTML = TGSTAR; return d; })(),
-      el('div', { class: 'tx' }, (() => { const b = el('b'); b.innerHTML = TGSTAR + ' '; b.append(`${p.stars} · ${p.item}`); return b; })(), el('small', {}, `${p.name || p.user_id}${p.username ? ' @' + p.username : ''} · ${ago(p.created)} назад`)), b));
+    const [mt, col, ic] = M[p.method] || [p.method, 'var(--fill)', 'bag'];
+    const lead = el('div', { class: 'ic', style: `background:${col}` }); lead.innerHTML = p.method === 'stars' ? TGSTAR : `<svg><use href="#i-${ic}"/></svg>`;
+    const sum = p.method === 'stars' ? `${p.stars} ★` : `${fmt(p.ton, 4)} TON`;
+    let act = null;
+    if (p.method === 'stars') {
+      act = el('button', { class: 'pill', style: p.refunded ? '' : 'color:var(--red)', disabled: p.refunded ? '' : false }, p.refunded ? 'Возвращён' : 'Вернуть');
+      act.onclick = () => tg.showConfirm ? tg.showConfirm(`Вернуть ${p.stars} Stars пользователю ${p.name || p.user_id}?`, ok => ok && refund(p)) : refund(p);
+    }
+    box.append(el('div', { class: 'cell' }, lead,
+      el('div', { class: 'tx' }, el('b', { class: 'num' }, `${sum} · ${p.title || p.item}`),
+        el('small', {}, `${mt} · ${p.name || p.user_id}${p.username ? ' @' + p.username : ''} · ${ago(p.created)} назад`)), act));
   });
 }
 async function refund(p) {
-  try { await api('/api/admin/refund/' + encodeURIComponent(p.charge_id), 'POST'); hud('Stars возвращены'); loadPays(); }
+  try { await api('/api/admin/refund/' + encodeURIComponent(p.ref || p.charge_id), 'POST'); hud('Stars возвращены'); loadPays(); }
   catch (e) { hud(e.message, false); }
 }
 

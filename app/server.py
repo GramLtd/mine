@@ -208,6 +208,7 @@ def buy_balance(body: InvoiceIn, tg=Depends(current_user)):
     err = game.apply_item(user["id"], body.item, paid_ton=price)
     if err:
         raise HTTPException(400, err)
+    db.balance_buy_log(user["id"], body.item, price)
     return game.state(load(tg), is_admin(tg))
 
 
@@ -386,7 +387,13 @@ async def a_broadcast(body: Broadcast, tg=Depends(admin)):
 
 @api.get("/api/admin/payments")
 def a_payments(_=Depends(admin)):
-    return {"payments": db.payments()}
+    rows = db.all_payments()
+    for r in rows:
+        try:
+            r["title"] = game.item_title(r["item"])
+        except Exception:
+            r["title"] = r["item"]
+    return {"payments": rows}
 
 
 @api.post("/api/admin/refund/{charge_id}")
