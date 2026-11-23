@@ -84,6 +84,25 @@ input,textarea{font:inherit;color:var(--label)}
 .srv .bt .pill{flex:1;height:36px;font-size:14px}
 .old{color:var(--label3);text-decoration:line-through;font-weight:500;margin-right:4px;font-size:13px}
 .paylist .cell{cursor:pointer}
+.legal{display:flex;justify-content:center;gap:8px;margin-top:18px;color:var(--label3);font-size:13px}
+.legal button{color:var(--label2);font-size:13px}
+#accept{position:fixed;inset:0;z-index:70;background:var(--bg);overflow:auto;display:flex;align-items:center;justify-content:center;padding:calc(20px + env(safe-area-inset-top)) 20px calc(20px + env(safe-area-inset-bottom))}
+#accept[hidden]{display:none}
+.acc-in{max-width:420px;width:100%;text-align:center}
+.acc-logo{width:96px;height:96px;border-radius:50%;margin-bottom:16px;box-shadow:0 12px 40px -10px #8B4BFF}
+.acc-in h2{font-size:26px;font-weight:700;margin-bottom:12px}
+.acc-in p{color:var(--label2);font-size:15px;line-height:1.45;margin-bottom:10px;text-align:left}
+.acc-in .group{margin:14px 0;text-align:left}
+.acc-check{display:flex;gap:10px;align-items:flex-start;text-align:left;font-size:14px;color:var(--label2);margin:6px 2px 16px}
+.acc-check input{width:20px;height:20px;flex:none;margin-top:1px;accent-color:var(--blue)}
+.chev{width:8px;height:13px;color:var(--label3)}
+.doc{font-size:14px;line-height:1.5;color:var(--label);white-space:pre-wrap;padding:4px 2px 20px}
+.doc b{font-weight:700}
+.chat{display:flex;flex-direction:column;gap:8px;margin:10px 0;max-height:40vh;overflow:auto}
+.chat .m{max-width:85%;padding:9px 12px;border-radius:16px;font-size:14px;line-height:1.4;white-space:pre-wrap;word-break:break-word}
+.chat .m.me{align-self:flex-end;background:var(--blue);color:#fff;border-bottom-right-radius:5px}
+.chat .m.sup{align-self:flex-start;background:var(--bg2);border-bottom-left-radius:5px}
+.chat .m small{display:block;opacity:.6;font-size:11px;margin-top:3px}
 .help{width:30px;height:30px;border-radius:50%;background:var(--fill);color:var(--label2);font-weight:700;font-size:15px;flex:none}
 .hint{text-align:center;font-size:13px;color:var(--label2);margin-top:4px;min-height:18px}
 .hint.warn{color:var(--orange);font-weight:600}
@@ -292,8 +311,8 @@ textarea{width:100%;min-height:140px;border:0;outline:none;background:var(--bg2)
 <!-- ============ ГЛАВНАЯ ============ -->
 <section id="home" class="page on">
   <div class="balance">
-    <div class="top"><div><small>Баланс</small><b class="num" id="bal">0.0000<span>HASH</span></b></div><div style="display:flex;gap:6px;align-items:center"><div class="chip" id="lvlchip">—</div><button class="help" id="help" aria-label="Обучение">?</button></div></div>
-    <div class="row"><button class="pill" id="topopen" style="background:var(--blue);color:#fff">Пополнить</button><button class="pill" id="wdopen">Вывести</button><button class="pill" id="chkopen" style="flex:.8">Чек</button></div>
+    <div class="top"><div><small>In-game balance</small><b class="num" id="bal">0.0000<span>HASH</span></b></div><div style="display:flex;gap:6px;align-items:center"><div class="chip" id="lvlchip">—</div><button class="help" id="help" aria-label="Обучение">?</button></div></div>
+    <div class="row"><button class="pill" id="topopen" style="background:var(--blue);color:#fff">Buy</button><button class="pill" id="rwopen">Rewards</button><button class="pill" id="chkopen" style="flex:.8">Check</button></div>
   </div>
 
   <div class="stage">
@@ -346,7 +365,7 @@ textarea{width:100%;min-height:140px;border:0;outline:none;background:var(--bg2)
       <li><i>1</i><div><b>Арендуйте сервер</b><small>В магазине — выберите любой тариф на 30 дней</small></div></li>
       <li><i>2</i><div><b>Сервер майнит сам</b><small>Круглосуточно, даже когда приложение закрыто</small></div></li>
       <li><i>3</i><div><b>Забирайте раз в сутки</b><small>Хранилище копит монеты сутки — затем нажмите «Забрать», чтобы майнинг продолжился. Бот напомнит</small></div></li>
-      <li><i>4</i><div><b>Выводите TON</b><small>Вывод на ваш TON-кошелёк</small></div></li>
+      <li><i>4</i><div><b>Weekly rewards</b><small>Active players share a weekly prize fund. Rewards are not guaranteed</small></div></li>
     </ol>
     <div style="padding:0 16px 14px"><button class="btn primary" id="act-go" style="height:46px;width:100%">Выбрать сервер</button></div>
   </div>
@@ -356,6 +375,8 @@ textarea{width:100%;min-height:140px;border:0;outline:none;background:var(--bg2)
     <button class="btn tinted" id="upg"><svg><use href="#i-fan"/></svg>Мои серверы</button>
   </div>
   <p class="footnote" id="upginfo" style="text-align:center;margin-top:12px"></p>
+  <div class="legal"><button data-doc="rules">Rules</button>·<button data-doc="privacy">Privacy</button>·<button class="sup-open">Support</button></div>
+  <p class="footnote" style="text-align:center;margin-top:2px;font-size:11px">TonCry is an entertainment game. TON CRY are in-game coins and are not a cryptocurrency.</p>
 </section>
 
 <!-- ============ МОИ СЕРВЕРЫ ============ -->
@@ -406,6 +427,7 @@ textarea{width:100%;min-height:140px;border:0;outline:none;background:var(--bg2)
   <div class="caption">Скины вентилятора</div>
   <div class="group" id="s-skin"></div>
   <p class="footnote">Любую покупку можно оплатить с баланса, TON-кошельком или Telegram Stars.</p>
+  <div class="legal"><button data-doc="rules">Rules</button>·<button data-doc="privacy">Privacy</button>·<button class="sup-open">Support</button></div>
 </section>
 
 <div id="admin-root"></div>
@@ -421,15 +443,26 @@ textarea{width:100%;min-height:140px;border:0;outline:none;background:var(--bg2)
   <p class="footnote" id="ban-user" style="margin-top:12px"></p>
 </div>
 
+<!-- ============ ТЕХРАБОТЫ ============ -->
+<div id="maint" hidden style="position:fixed;inset:0;z-index:65;background:var(--bg);flex-direction:column;align-items:center;justify-content:center;padding:32px;text-align:center">
+  <div style="width:84px;height:84px;border-radius:50%;background:color-mix(in srgb,var(--orange) 16%,transparent);display:grid;place-items:center;margin-bottom:22px">
+    <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="var(--orange)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3.5 17.5a1.4 1.4 0 0 0 2 2l5.8-5.8a4 4 0 0 0 5.4-5.4l-2.4 2.4-2-.6-.6-2z"/></svg>
+  </div>
+  <h2 style="font-size:24px;font-weight:700;letter-spacing:-.02em;margin-bottom:10px">Maintenance</h2>
+  <p style="color:var(--label2);font-size:16px;line-height:1.45;max-width:320px;white-space:pre-wrap" id="maint-text"></p>
+  <button class="btn tinted sup-open" style="width:100%;max-width:320px;margin-top:28px;flex:none">Contact support</button>
+  <p class="footnote" style="margin-top:12px">This page refreshes automatically.</p>
+</div>
+
 <!-- ============ ВЫВОД ============ -->
 <div class="scrim" id="wd-scrim"></div>
 <div class="sheet" id="wd-sheet">
   <div class="grabber"></div>
-  <div class="sheet-head"><button id="wd-cancel">Закрыть</button><h3>Вывод на TON</h3><span style="width:60px"></span></div>
+  <div class="sheet-head"><button id="wd-cancel">Закрыть</button><h3>Withdraw rewards</h3><span style="width:60px"></span></div>
   <div class="caption">Сумма</div>
   <div class="group">
     <label class="cell field noicon"><span>Количество</span><input id="wd-amount" type="number" step="any" inputmode="decimal" placeholder="0"></label>
-    <button class="cell noicon" id="wd-max"><div class="tx"><b style="color:var(--blue)">Вывести всё</b></div><span class="val num" id="wd-avail"></span></button>
+    <button class="cell noicon" id="wd-max"><div class="tx"><b style="color:var(--blue)">Withdraw all rewards</b></div><span class="val num" id="wd-avail"></span></button>
   </div>
   <div class="caption">TON-адрес кошелька</div>
   <div class="group">
@@ -461,24 +494,79 @@ textarea{width:100%;min-height:140px;border:0;outline:none;background:var(--bg2)
   <div class="sheet-head"><button id="pay-cancel">Закрыть</button><h3>Оплата</h3><span style="width:60px"></span></div>
   <div class="caption" id="pay-title"></div>
   <div class="group paylist">
-    <div class="cell" id="pay-bal"><div class="ic" style="background:var(--green)"><svg><use href="#i-bag"/></svg></div><div class="tx"><b>С баланса</b><small id="pay-bal-s"></small></div><span class="val num" id="pay-bal-v"></span></div>
+    <div class="cell" id="pay-bal"><div class="ic" style="background:var(--green)"><svg><use href="#i-bag"/></svg></div><div class="tx"><b>With TON CRY</b><small id="pay-bal-s"></small></div><span class="val num" id="pay-bal-v"></span></div>
     <div class="cell" id="pay-ton"><div class="ic" style="background:#0098EA"><svg><use href="#i-paper"/></svg></div><div class="tx"><b>TON-кошелёк</b><small>Tonkeeper, Telegram Wallet и др.</small></div><span class="val num" id="pay-ton-v"></span></div>
     <div class="cell" id="pay-star"><div class="ic" style="background:var(--orange)"><svg><use href="#i-star"/></svg></div><div class="tx"><b>Telegram Stars</b><small>Оплата внутри Telegram</small></div><span class="val num" id="pay-star-v"></span></div>
   </div>
+</div>
+
+<!-- ============ ПРИНЯТИЕ ПРАВИЛ ============ -->
+<div id="accept" hidden>
+  <div class="acc-in">
+    <img src="/static/icon.png" alt="" class="acc-logo">
+    <h2>Welcome to TonCry</h2>
+    <p>TonCry is an <b>entertainment game</b> — a mining simulator. Servers are virtual, no real mining takes place.</p>
+    <p><b>TON CRY</b> are in-game coins. They are not a cryptocurrency and cannot be exchanged for money or TON. Weekly rewards come from a limited prize fund and are not guaranteed.</p>
+    <p>Before you start, please read and accept:</p>
+    <div class="group">
+      <button class="cell noicon" data-doc="rules"><div class="tx"><b>Rules of the Service</b></div><svg class="chev"><use href="#i-chev"/></svg></button>
+      <button class="cell noicon" data-doc="privacy"><div class="tx"><b>Privacy Policy</b></div><svg class="chev"><use href="#i-chev"/></svg></button>
+    </div>
+    <label class="acc-check"><input type="checkbox" id="acc-18"> I am 18 or older and I accept the Rules and the Privacy Policy</label>
+    <button class="btn primary" id="acc-ok" disabled style="width:100%">I accept</button>
+  </div>
+</div>
+
+<!-- ============ ДОКУМЕНТ (Rules / Privacy) ============ -->
+<div class="scrim" id="doc-scrim"></div>
+<div class="sheet" id="doc-sheet" style="z-index:71">
+  <div class="grabber"></div>
+  <div class="sheet-head"><button id="doc-close">Close</button><h3 id="doc-title"></h3><span style="width:60px"></span></div>
+  <div class="doc" id="doc-body"></div>
+</div>
+
+<!-- ============ ПОДДЕРЖКА ============ -->
+<div class="scrim" id="sup-scrim" style="z-index:71"></div>
+<div class="sheet" id="sup-sheet" style="z-index:72">
+  <div class="grabber"></div>
+  <div class="sheet-head"><button id="sup-close">Close</button><h3>Support</h3><span style="width:60px"></span></div>
+  <p class="footnote" style="margin-top:0">Write your question — the support team will reply here and in the bot chat.</p>
+  <div class="chat" id="sup-chat"></div>
+  <textarea id="sup-text" placeholder="Your message" style="min-height:80px"></textarea>
+  <button class="btn primary" id="sup-send" style="width:100%;margin-top:10px">Send</button>
+</div>
+
+<!-- ============ ВОЗНАГРАЖДЕНИЯ ============ -->
+<div class="scrim" id="rw-scrim"></div>
+<div class="sheet" id="rw-sheet">
+  <div class="grabber"></div>
+  <div class="sheet-head"><button id="rw-close">Close</button><h3>Weekly rewards</h3><span style="width:60px"></span></div>
+  <div class="group">
+    <div class="cell"><div class="ic" style="background:var(--orange)"><svg><use href="#i-gift"/></svg></div><div class="tx"><b>Prize fund this week</b><small id="rw-fund-s"></small></div><span class="val num" id="rw-fund"></span></div>
+    <div class="cell"><div class="ic" style="background:var(--indigo)"><svg><use href="#i-bolt"/></svg></div><div class="tx"><b>Your activity</b><small id="rw-pts-s"></small></div><span class="val num" id="rw-pts"></span></div>
+    <div class="cell"><div class="ic" style="background:var(--green)"><svg><use href="#i-up"/></svg></div><div class="tx"><b>Your estimated reward</b><small id="rw-est-s"></small></div><span class="val num" id="rw-est"></span></div>
+  </div>
+  <div class="caption">Rewards balance</div>
+  <div class="group">
+    <div class="cell noicon"><div class="tx"><b class="num" id="rw-bal"></b><small>Credited after each week ends</small></div><button class="pill" id="rw-wd">Withdraw</button></div>
+  </div>
+  <p class="footnote" id="rw-note"></p>
+  <div class="caption">Past weeks</div>
+  <div class="group" id="rw-hist"></div>
 </div>
 
 <!-- ============ ПОПОЛНЕНИЕ ============ -->
 <div class="scrim" id="top-scrim"></div>
 <div class="sheet" id="top-sheet">
   <div class="grabber"></div>
-  <div class="sheet-head"><button id="top-cancel">Закрыть</button><h3>Пополнение</h3><span style="width:60px"></span></div>
-  <div class="caption">Сумма в TON</div>
+  <div class="sheet-head"><button id="top-cancel">Закрыть</button><h3>Buy TON CRY</h3><span style="width:60px"></span></div>
+  <div class="caption">You pay, TON</div>
   <div class="group">
     <label class="cell field noicon"><span>Сумма</span><input id="top-amount" type="number" step="any" min="0.1" inputmode="decimal" placeholder="0"></label>
   </div>
   <div id="top-quick" style="display:flex;gap:8px;margin-top:10px"></div>
-  <p class="footnote">С баланса можно арендовать и улучшать серверы и покупать всё в магазине.</p>
-  <button class="btn primary" id="top-pay" style="width:100%;margin-top:16px">Пополнить</button>
+  <p class="footnote" id="top-note">You get the same amount of TON CRY (in-game coins) on your balance. TON CRY are used only inside the game and cannot be exchanged back to TON.</p>
+  <button class="btn primary" id="top-pay" style="width:100%;margin-top:16px">Buy TON CRY</button>
 </div>
 
 <!-- ============ ОПЛАТА В TON ============ -->
@@ -545,16 +633,26 @@ function hud(t, ok = true) { const h = $('hud'); h.textContent = t; h.classList.
 async function api(path, method = 'GET', body) {
   const r = await fetch(path, { method, headers: { 'X-Init-Data': tg.initData, 'X-Lang': window.LANG || 'ru', 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
   const j = await r.json().catch(() => ({}));
+  if (r.status === 503 && j.detail?.maintenance) { showMaint(j.detail.message); throw new Error('Maintenance'); }
   if (r.status === 403 && j.detail?.banned) { showBanned(j.detail.support); throw new Error('Аккаунт заблокирован'); }
   if (!r.ok) throw new Error(typeof j.detail === 'string' ? j.detail : 'Ошибка сети');
   return j;
 }
 
+let maintTimer = null;
+function showMaint(text) {
+  $('maint-text').textContent = text || '';
+  if (!$('maint').hidden) return;
+  $('maint').hidden = false; $('maint').style.display = 'flex'; $('tabbar').style.display = 'none';
+  // проверяем раз в 20 секунд: как только техработы закончатся — перезагружаем приложение
+  maintTimer = setInterval(async () => {
+    try { await api('/api/state'); clearInterval(maintTimer); location.reload(); } catch {}
+  }, 20000);
+}
 function showBanned(sup) {
   if (!$('banned').hidden) return;
   $('banned').hidden = false; $('tabbar').style.display = 'none';
-  if (sup) { $('ban-user').textContent = '@' + sup; $('ban-support').onclick = () => tg.openTelegramLink(`https://t.me/${sup}`); }
-  else { $('ban-support').hidden = true; }
+  $('ban-support').classList.add('sup-open'); $('ban-user').textContent = '';
 }
 
 /* ---------- лопасти ---------- */
@@ -596,7 +694,8 @@ function render(s) {
   $('claim').disabled = !n && !(s.pending > 0);
   document.querySelector('.fan').classList.toggle('off', !n);
   renderMyServers(s);
-  if (!s.tutorial_done && !tourSeen()) setTimeout(() => startTour(), 400);
+  $('accept').hidden = !!s.accepted;
+  if (s.accepted && !s.tutorial_done && !tourSeen()) setTimeout(() => startTour(), 400);
   document.querySelector('.fan').dataset.skin = s.skin || '';
   document.querySelector('.fan').style.setProperty('--spin', (1.6 / (s.boost?.mult || 1)) + 's');
   if (s.is_admin && !adminLoaded) loadAdminUI();
@@ -644,8 +743,8 @@ function pay(it) { // it: {id, title, ton, stars?}
   $('pay-title').textContent = `${it.title} · ${it.ton} TON`;
   const enough = S.balance >= it.ton;
   $('pay-bal').toggleAttribute('disabled', !enough);
-  $('pay-bal-s').textContent = enough ? `На балансе ${fmt(S.balance, 4)}` : `Не хватает ${fmt(it.ton - S.balance, 4)} — пополните баланс`;
-  $('pay-bal-v').textContent = `${it.ton} TON`; $('pay-ton-v').textContent = `${it.ton} TON`;
+  $('pay-bal-s').textContent = enough ? `Balance: ${fmt(S.balance, 4)} ${S.coin}` : `Need ${fmt(it.ton - S.balance, 4)} more ${S.coin}`;
+  $('pay-bal-v').textContent = `${it.ton} ${S.coin}`; $('pay-ton-v').textContent = `${it.ton} TON`;
   $('pay-ton').hidden = !S.ton_enabled;
   $('pay-star-v').innerHTML = TGSTAR; $('pay-star-v').append(' ' + (it.stars || starsFor(it.ton)));
   paySheet(true);
@@ -669,7 +768,7 @@ function renderMyServers(s) {
     const left = Math.max(0, m.expires - now), days = Math.ceil(left / 86400);
     const card = el('div', { class: 'srv', style: m.active ? '' : 'opacity:.6' });
     card.append(el('div', { class: 'hd' }, icon('fan', m.active ? 'var(--indigo)' : 'var(--label3)'),
-      el('div', { class: 'tx' }, el('b', {}, m.spec), el('small', {}, `${m.hashrate.toLocaleString(window.LANG === 'en' ? 'en' : 'ru')} GH/s · ≈ ${fmt(m.daily_income * (1 - s.fee), 2)} TON/день`)),
+      el('div', { class: 'tx' }, el('b', {}, m.spec), el('small', {}, `${m.hashrate.toLocaleString(window.LANG === 'en' ? 'en' : 'ru')} GH/s base · output varies hourly`)),
       el('span', { class: 'val', style: m.active ? (days <= 3 ? 'color:var(--orange)' : '') : 'color:var(--red)' },
         m.active ? (left < 86400 ? `< 1 дня` : `${days} ${plural(days, 'день', 'дня', 'дней')}`) : 'Истёк')));
     const bar = el('div', { class: 'bar' }, el('i', { style: `width:${Math.min(100, left / (s.rent_days * 86400) * 100)}%` }));
@@ -705,20 +804,19 @@ $('top-pay').onclick = () => {
 const WD_ST = { pending: ['В обработке', 'var(--orange)'], paid: ['Выплачено', 'var(--green)'], rejected: ['Отклонено', 'var(--red)'] };
 function wdSheet(on) { $('wd-scrim').classList.toggle('on', on); $('wd-sheet').classList.toggle('on', on); }
 $('wd-scrim').onclick = $('wd-cancel').onclick = () => wdSheet(false);
-$('wdopen').onclick = async () => {
+function openWithdraw() {
   if (!S) return;
-  if (!S.withdraw_enabled) return hud('Вывод временно недоступен', false);
-  const avail = S.balance + S.pending;
-  $('wd-avail').textContent = `${fmt(avail, 4)} ${S.coin}`;
-  $('wd-note').textContent = `Минимальная сумма — ${S.min_withdraw} ${S.coin}. Заявки обрабатываются вручную, обычно в течение 24 часов.`;
-  $('wd-amount').placeholder = `от ${S.min_withdraw}`;
+  if (!S.withdraw_enabled) return hud('Withdrawals are temporarily unavailable', false);
+  $('wd-avail').textContent = `${fmt(S.rewards.balance, 4)} TON`;
+  $('wd-note').textContent = `Only rewards from the weekly prize fund can be withdrawn (TON CRY can’t). Minimum ${S.min_withdraw} TON. Requests are reviewed manually, usually within 24 hours.`;
+  $('wd-amount').placeholder = `from ${S.min_withdraw}`;
   try { $('wd-addr').value = localStorage.getItem('ton_addr') || ''; } catch {}
   wdSheet(true); loadWdHist();
-};
-$('wd-max').onclick = () => { $('wd-amount').value = Math.floor((S.balance + S.pending) * 1e4) / 1e4; };
+}
+$('wd-max').onclick = () => { $('wd-amount').value = Math.floor(S.rewards.balance * 1e4) / 1e4; };
 $('wd-send').onclick = async () => {
   const amount = +$('wd-amount').value, address = $('wd-addr').value.trim();
-  if (amount < S.min_withdraw) return hud(`Минимум ${S.min_withdraw} ${S.coin}`, false);
+  if (amount < S.min_withdraw) return hud(`Minimum ${S.min_withdraw} TON`, false);
   if (!address) return hud('Укажите TON-адрес', false);
   $('wd-send').disabled = true;
   try {
@@ -733,7 +831,7 @@ async function loadWdHist() {
   if (!withdrawals.length) box.append(el('div', { class: 'empty' }, 'Заявок пока нет'));
   withdrawals.forEach(w => {
     const [t, c] = WD_ST[w.status] || [w.status, 'var(--label3)'];
-    box.append(el('div', { class: 'cell noicon' }, el('div', { class: 'tx' }, el('b', { class: 'num' }, `${fmt(w.amount, 4)} ${S.coin}`),
+    box.append(el('div', { class: 'cell noicon' }, el('div', { class: 'tx' }, el('b', { class: 'num' }, `${fmt(w.amount, 4)} ${w.source === 'reward' ? 'TON' : S.coin}`),
       el('small', { style: 'font-family:ui-monospace,Menlo,monospace' }, w.address.slice(0, 6) + '…' + w.address.slice(-6)),
       w.status === 'rejected' && w.reason ? el('small', { style: 'white-space:normal;color:var(--red)' }, `${tr('Причина')}: ${w.reason}`) : ''),
       el('span', { class: 'val', style: `color:${c};font-weight:600` }, t)));
@@ -749,11 +847,10 @@ function renderShop(s) {
   ['skin', 'servers'].forEach(c => $('s-' + c).innerHTML = '');
   const hrs = Math.max(0, Math.round((s.restock_at - Date.now() / 1000) / 3600));
   $('s-srv-cap').textContent = s.first_discount ? `Серверы · первый −${Math.round(s.first_discount * 100)}%` : 'Серверы';
-  $('s-srv-note').textContent = `Аренда на ${s.rent_days} дней. Склад пополняется каждый день в 12:00 МСК (через ${hrs} ч).` + (s.fee ? ` Доход указан с учётом комиссии ${Math.round(s.fee * 100)}%.` : '');
+  $('s-srv-note').textContent = `Rented for ${s.rent_days} days. Stock refills daily at 12:00 Moscow time (in ${hrs} h). Server output varies randomly from hour to hour.`;
   s.servers.forEach(sv => {
     const out = sv.stock <= 0;
     const tx = el('div', { class: 'tx' }, el('b', {}, sv.spec),
-      el('small', { style: 'display:block;color:var(--green)' }, `≈ ${fmt(sv.daily_income * (1 - s.fee), 2)} TON в день`),
       el('small', { style: 'display:block' }, `${sv.hashrate.toLocaleString(window.LANG === 'en' ? 'en' : 'ru')} GH/s · `,
         el('span', { style: out ? 'color:var(--red)' : sv.stock < 10 ? 'color:var(--orange)' : '' }, out ? 'нет в наличии' : `осталось ${sv.stock} шт`)));
     tx.firstChild.style.whiteSpace = 'normal';
@@ -896,13 +993,13 @@ async function loadMissions() {
 const tourSeen = () => { try { return localStorage.getItem('tour_done') === '1'; } catch { return false; } };
 let tourStarted = false;
 const SLIDES = () => [
-  ['fan', 'var(--indigo)', 'Добро пожаловать!', 'Арендуйте облачные серверы — они майнят TON для вас круглосуточно. Разберёмся за минуту.'],
-  ['bag', 'var(--blue)', 'Арендуйте сервер', `Выберите тариф в магазине. Аренда — на ${S?.rent_days || 30} дней. Первый сервер со скидкой ${Math.round((S?.first_discount || .25) * 100)}%.`],
-  ['down', 'var(--green)', 'Забирайте намайненное', `Монеты копятся в хранилище ${(S?.storage_hours || 24) >= 24 ? 'сутки' : S.storage_hours + ' ч'}. Заходите раз в день и жмите «Забрать», чтобы майнинг продолжился. Бот пришлёт напоминание.`],
-  ['paper', 'var(--orange)', 'Выводите TON', 'Пополняйте баланс, оплачивайте им серверы и выводите прибыль на свой TON-кошелёк.'],
+  ['fan', 'var(--indigo)', 'Welcome!', 'TonCry is a mining simulator game. Rent virtual servers, collect in-game TON CRY coins and grow your farm. Let’s get you set up in a minute.'],
+  ['bag', 'var(--blue)', 'Rent a server', `Pick a plan in the shop. Rentals last ${S?.rent_days || 30} days and your first server is ${Math.round((S?.first_discount || .25) * 100)}% off. Servers are virtual game items.`],
+  ['down', 'var(--green)', 'Claim once a day', 'TON CRY pile up in storage for 24 hours. Come back daily and tap “Claim” to keep your servers working. The bot will remind you.'],
+  ['gift', 'var(--orange)', 'Weekly rewards', `Every week ${Math.round((S?.rewards?.share || .2) * 100)}% of the game’s revenue goes to a prize fund shared by active players. Rewards are paid in TON, limited and not guaranteed.`],
 ];
 const SPOTS = [
-  ['.balance', 'Баланс', 'Здесь ваши монеты. Пополняйте баланс в TON и выводите на кошелёк.'],
+  ['.balance', 'In-game balance', 'Your TON CRY coins live here. Buy more with TON, open weekly Rewards or send a Check to a friend.'],
   ['.stage', 'Майнинг', 'Вентилятор крутится, пока работают серверы. Кольцо показывает, насколько заполнено хранилище.'],
   ['#claim', 'Забрать', 'Переводит намайненное на баланс и освобождает хранилище.'],
   ['#tabbar [data-p="myservers"]', 'Мои серверы', 'Срок аренды, доход, улучшение и продление каждого сервера.'],
@@ -986,6 +1083,62 @@ function endTour(toShop) {
 $('tour-next').onclick = $('tip-next').onclick = nextStep;
 $('tour-skip').onclick = () => endTour(false);
 $('help').onclick = () => startTour();
+/* документы */
+function docSheet(on) { $('doc-scrim').classList.toggle('on', on); $('doc-sheet').classList.toggle('on', on); }
+$('doc-scrim').onclick = $('doc-close').onclick = () => docSheet(false);
+document.addEventListener('click', async e => {
+  const b = e.target.closest('[data-doc]'); if (!b) return;
+  const doc = b.dataset.doc;
+  $('doc-title').textContent = doc === 'privacy' ? 'Privacy Policy' : 'Rules';
+  $('doc-body').textContent = 'Loading…'; docSheet(true);
+  try { const r = await (await fetch('/api/doc/' + doc)).json(); $('doc-body').innerHTML = r.html; }
+  catch { $('doc-body').textContent = 'Could not load the document'; }
+});
+/* принятие правил */
+$('acc-18').onchange = () => $('acc-ok').disabled = !$('acc-18').checked;
+$('acc-ok').onclick = async () => {
+  try { render(await api('/api/accept', 'POST')); haptic('notificationOccurred', 'success'); } catch (e) { hud(e.message, false); }
+};
+/* поддержка */
+function supSheet(on) { $('sup-scrim').classList.toggle('on', on); $('sup-sheet').classList.toggle('on', on); }
+$('sup-scrim').onclick = $('sup-close').onclick = () => supSheet(false);
+function renderChat(msgs) {
+  const box = $('sup-chat'); box.innerHTML = '';
+  if (!msgs.length) box.append(el('div', { class: 'empty' }, 'No messages yet'));
+  msgs.forEach(m => box.append(el('div', { class: 'm ' + (m.from_admin ? 'sup' : 'me') }, m.text,
+    el('small', {}, (m.from_admin ? 'Support · ' : '') + new Date(m.created * 1000).toLocaleString('en', { dateStyle: 'short', timeStyle: 'short' })))));
+  box.scrollTop = box.scrollHeight;
+}
+document.addEventListener('click', async e => {
+  if (!e.target.closest('.sup-open')) return;
+  supSheet(true);
+  try { renderChat((await api('/api/support')).messages); } catch (er) { hud(er.message, false); }
+});
+$('sup-send').onclick = async () => {
+  const text = $('sup-text').value.trim(); if (!text) return;
+  $('sup-send').disabled = true;
+  try { renderChat((await api('/api/support', 'POST', { text })).messages); $('sup-text').value = ''; hud('Sent to support'); }
+  catch (e) { hud(e.message, false); } finally { $('sup-send').disabled = false; }
+};
+/* вознаграждения */
+function rwSheet(on) { $('rw-scrim').classList.toggle('on', on); $('rw-sheet').classList.toggle('on', on); }
+$('rw-scrim').onclick = $('rw-close').onclick = () => rwSheet(false);
+function renderRewards() {
+  const r = S.rewards, left = Math.max(0, r.ends_at - Date.now() / 1000), d = Math.floor(left / 86400), h = Math.floor(left % 86400 / 3600);
+  $('rw-fund').textContent = `${fmt(r.fund, 2)} TON`;
+  $('rw-fund-s').textContent = `${Math.round(r.share * 100)}% of this week’s revenue · ends in ${d ? d + 'd ' : ''}${h}h`;
+  $('rw-pts').textContent = fmt(r.points, 2);
+  $('rw-pts-s').textContent = `${S.coin} collected this week (of ${fmt(r.total_points, 2)} by all players)`;
+  $('rw-est').textContent = r.eligible ? `≈ ${fmt(r.estimate, 2)} TON` : '—';
+  $('rw-est-s').textContent = r.eligible ? `Max ${r.cap} TON per week · changes as others play` : 'Rent at least one server to take part';
+  $('rw-bal').textContent = `${fmt(r.balance, 4)} TON`;
+  $('rw-note').textContent = 'Rewards are prizes for game activity from a limited fund — not income, and not guaranteed. TON CRY themselves cannot be withdrawn.';
+  const hb = $('rw-hist'); hb.innerHTML = '';
+  if (!r.history.length) hb.append(el('div', { class: 'empty' }, 'No rewards yet'));
+  r.history.forEach(x => hb.append(el('div', { class: 'cell noicon' }, el('div', { class: 'tx' }, el('b', {}, 'Week of ' + new Date(x.created * 1000 - 7 * 864e5).toLocaleDateString('en', { month: 'short', day: 'numeric' }))), el('span', { class: 'val num' }, `+${fmt(x.amount, 4)} TON`))));
+}
+$('rwopen').onclick = () => { if (!S) return; renderRewards(); rwSheet(true); };
+$('rw-wd').onclick = () => { rwSheet(false); openWithdraw(); };
 
 /* ---------- навигация ---------- */
 function bindTab(b) { b.onclick = () => {

@@ -56,6 +56,17 @@ async def storage_watcher(bot, interval: int = 60):
                 except Exception:
                     pass
                 await asyncio.sleep(0.05)
+            # итоги недели программы вознаграждений
+            from . import rewards
+            for uid, amt in rewards.distribute_due():
+                lg = lang_of(uid)
+                try:
+                    await bot.send_message(uid, L(lg, f"🏆 Итоги недели: вознаграждение <b>{amt:g} TON</b> зачислено на ваш баланс вознаграждений.",
+                                                  f"🏆 Weekly results: a reward of <b>{amt:g} TON</b> has been added to your rewards balance."),
+                                           reply_markup=kb(lg))
+                except Exception:
+                    pass
+                await asyncio.sleep(0.05)
             for sv in db.servers_expired_unnotified(time.time()):
                 db.server_update(sv["id"], expiry_notified=1)
                 spec = game.tier_info(sv["tier"])["spec"]

@@ -85,13 +85,15 @@ def is_admin(tg) -> bool:
     return (tg.get("username") or "").lower() in ADMIN_USERNAMES
 
 
-def load(tg):
+def load(tg, allow_banned=False, allow_maintenance=False):
     name = tg.get("first_name", "") or tg.get("username", "")
     user, _ = db.get_or_create(tg["id"], name, username=tg.get("username"))
     if user.get("lang") != i18n.lang_var.get():  # запоминаем язык — на нём пишет бот
         db.update(user["id"], lang=i18n.lang_var.get())
         user["lang"] = i18n.lang_var.get()
-    if user.get("banned") and not is_admin(tg):
+    if settings.maintenance() and not allow_maintenance and not is_admin(tg):
+        raise HTTPException(503, {"maintenance": True, "message": settings.maintenance_text()})
+    if user.get("banned") and not allow_banned and not is_admin(tg):
         raise HTTPException(403, {"banned": True, "support": settings.support(),
                                   "message": "Аккаунт заблокирован"})
     return user
@@ -160,6 +162,22 @@ async def do_mission(mid: str, tg=Depends(current_user)):
     return {"ok": True}
 
 
+from .rules import REVISION as RULES_REV  # noqa: E402
+
+
+def require_accepted(user):
+    """Покупки и вывод — только после явного принятия правил и политики конфиденциальности."""
+    if user.get("accepted_rev") != RULES_REV:
+        raise HTTPException(403, "Сначала примите правила и политику конфиденциальности")
+
+
+@api.post("/api/accept")
+def accept_rules(tg=Depends(current_user)):
+    user = load(tg)
+    db.update(user["id"], accepted_at=time.time(), accepted_rev=RULES_REV)
+    return game.state(load(tg), is_admin(tg))
+
+
 @api.post("/api/tutorial")
 def tutorial_done(tg=Depends(current_user)):
     db.update(load(tg)["id"], tutorial_done=1)
@@ -193,21 +211,22 @@ def my_withdrawals(tg=Depends(current_user)):
 @api.post("/api/withdraw")
 async def withdraw(body: WithdrawIn, tg=Depends(current_user)):
     user = load(tg)
+    require_accepted(user)
     if not settings.withdraw_enabled():
         raise HTTPException(400, "Вывод временно недоступен")
     address = body.address.strip()
     if not ton.valid_address(address):
         raise HTTPException(400, "Неверный TON-адрес")
+    # выводятся только вознаграждения из призового фонда (в TON); TON CRY — игровая валюта и не выводится
     amount = round(body.amount, 4)
     if amount < settings.min_withdraw():
-        raise HTTPException(400, f"Минимум {settings.min_withdraw():g} {settings.coin()}")
-    game.settle(user)
+        raise HTTPException(400, f"Минимум {settings.min_withdraw():g} TON")
     wid = db.create_withdrawal(user["id"], amount, address)
     if wid is None:
-        raise HTTPException(400, "Недостаточно средств или уже есть заявка в обработке")
+        raise HTTPException(400, "Недостаточно вознаграждений или уже есть заявка в обработке")
     for aid in ADMIN_IDS:
         try:
-            await bot.send_message(aid, f"💸 Заявка #{wid}: {amount:g} {settings.coin()} от "
+            await bot.send_message(aid, f"💸 Вывод вознаграждения #{wid}: {amount:g} TON от "
                                         f"{html.escape(user['name'] or '')} (<code>{user['id']}</code>)\n<code>{html.escape(address)}</code>")
         except Exception:
             pass
@@ -231,6 +250,7 @@ def _checked(user, item):
 def buy_balance(body: InvoiceIn, tg=Depends(current_user)):
     """Оплата с баланса."""
     user = load(tg)
+    require_accepted(user)
     if body.item == "topup":
         raise HTTPException(400, "Нет такого товара")
     _checked(user, body.item)
@@ -247,6 +267,7 @@ def buy_balance(body: InvoiceIn, tg=Depends(current_user)):
 @api.post("/api/stars/invoice")
 async def stars_invoice(body: InvoiceIn, tg=Depends(current_user)):
     user = load(tg)
+    require_accepted(user)
     if body.item == "topup":
         raise HTTPException(400, "Пополнение — только в TON")
     _checked(user, body.item)
@@ -284,6 +305,7 @@ async def ton_paid(order):
 @api.post("/api/ton/order")
 def ton_order(body: InvoiceIn, tg=Depends(current_user)):
     user = load(tg)
+    require_accepted(user)
     if not settings.ton_enabled():
         raise HTTPException(400, "Оплата в TON временно недоступна")
     item = body.item
@@ -295,7 +317,8 @@ def ton_order(body: InvoiceIn, tg=Depends(current_user)):
         _checked(user, item)
         amount = game.price_ton(user, item)
     nano = round(amount * ton.NANO)
-    comment = f"TC{user['id']}-{secrets.token_hex(3)}"
+    # случайный код без Telegram ID: комментарий виден всем в блокчейне
+    comment = "TC-" + secrets.token_hex(5)
     oid = db.ton_order_create(user["id"], item, nano, comment)
     wallet = settings.ton_wallet()
     return {"id": oid, "address": wallet, "amount": nano / ton.NANO, "nano": nano, "comment": comment,
@@ -321,7 +344,10 @@ async def ton_order_check(oid: int, tg=Depends(current_user)):
 # ---------- Админка ----------
 @api.get("/api/admin/stats")
 def a_stats(_=Depends(admin)):
-    return db.stats()
+    from . import rewards
+    st = db.stats()
+    rev = db.revenue_between(rewards.week_start(), time.time(), rewards.stars_to_ton())
+    return {**st, "week_revenue": rev, "week_fund": rev * rewards.share(), "reward_share": rewards.share()}
 
 
 @api.get("/api/admin/users")
@@ -522,6 +548,11 @@ class SettingsIn(BaseModel):
     ton_wallet: str | None = None
     star_rub: float | None = None
     nofee_price: float | None = None
+    maintenance: bool | None = None
+    maintenance_text: str | None = None
+    reward_share: float | None = None
+    reward_cap: float | None = None
+    accrual_ratio: float | None = None
     ref_bonus: float | None = None
     stock_daily: list[int] | None = None
     ton_rub: float | None = None
@@ -533,6 +564,8 @@ def a_set_settings(body: SettingsIn, _=Depends(admin)):
         name = body.coin_name.strip()
         if not 1 <= len(name) <= 16:
             raise HTTPException(400, "Название монеты: 1–16 символов")
+        if not settings.coin_name_allowed(name):
+            raise HTTPException(400, "TON CRY — игровая валюта: нельзя называть её как реальную криптовалюту (TON, GRAM и т. п.)")
         db.set_setting("coin_name", name)
     if body.welcome_text is not None:
         if not body.welcome_text.strip() or len(body.welcome_text) > 3500:
@@ -562,6 +595,17 @@ def a_set_settings(body: SettingsIn, _=Depends(admin)):
         db.set_setting("star_rub", body.star_rub)
     if body.ref_bonus is not None:
         db.set_setting("ref_bonus", max(0.0, body.ref_bonus))
+    if body.maintenance is not None:
+        db.set_setting("maintenance", "1" if body.maintenance else "0")
+    if body.maintenance_text is not None:
+        db.set_setting("maintenance_text", body.maintenance_text.strip()[:1000])
+    if body.reward_share is not None:  # доля недельной выручки в призовом фонде, не больше 50%
+        db.set_setting("reward_share", min(0.5, max(0.0, body.reward_share)))
+    if body.reward_cap is not None:
+        db.set_setting("reward_cap", max(0.0, body.reward_cap))
+    if body.accrual_ratio is not None:  # сколько от цены сервер начисляет за срок аренды (до 90%)
+        from .config import ACCRUAL_MAX
+        db.set_setting("accrual_ratio", min(ACCRUAL_MAX, max(0.0, body.accrual_ratio)))
     if body.nofee_price is not None:
         db.set_setting("nofee_price", max(0.01, body.nofee_price))
     if body.stock_daily is not None:
@@ -630,6 +674,65 @@ def check_image(amount: str, thumb: int = 0, n: int = 1):
     n = max(1, min(n, 1000))
     data = checkimg.thumb(txt, settings.coin()) if thumb else checkimg.render(txt, settings.coin(), _rub(a), n)
     return Response(data, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=86400"})
+
+
+@api.get("/api/doc/{doc}")
+def get_doc(doc: str):
+    from . import rules
+    if doc not in ("rules", "privacy"):
+        raise HTTPException(404)
+    return {"html": rules.text("en", getattr(api.state, "bot_username", ""), doc), "revision": rules.REVISION}
+
+
+# ---------- поддержка из приложения ----------
+class SupportIn(BaseModel):
+    text: str
+
+
+@api.get("/api/support")
+def my_support(tg=Depends(current_user)):  # поддержка доступна и заблокированным, и во время техработ
+    return {"messages": db.ticket_messages_for_user(load(tg, allow_banned=True, allow_maintenance=True)["id"])}
+
+
+@api.post("/api/support")
+async def send_support(body: SupportIn, tg=Depends(current_user)):
+    from . import support
+    user = load(tg, allow_banned=True, allow_maintenance=True)
+    text = body.text.strip()
+    if not 1 <= len(text) <= 2000:
+        raise HTTPException(400, "Пустое сообщение")
+    await support.from_user(bot, user, text)
+    return {"messages": db.ticket_messages_for_user(user["id"])}
+
+
+@api.get("/api/admin/tickets")
+def a_tickets(status: str = "open", _=Depends(admin)):
+    return {"tickets": db.tickets("closed" if status == "closed" else "open")}
+
+
+@api.get("/api/admin/tickets/{tid}")
+def a_ticket(tid: int, _=Depends(admin)):
+    t = db.ticket_get(tid)
+    if not t:
+        raise HTTPException(404, "Обращение не найдено")
+    return t
+
+
+@api.post("/api/admin/tickets/{tid}/reply")
+async def a_ticket_reply(tid: int, body: SupportIn, _=Depends(admin)):
+    from . import support
+    if not body.text.strip():
+        raise HTTPException(400, "Пустое сообщение")
+    if not await support.from_admin(bot, tid, body.text.strip()):
+        raise HTTPException(400, "Не удалось отправить ответ")
+    return db.ticket_get(tid)
+
+
+@api.post("/api/admin/tickets/{tid}/close")
+async def a_ticket_close(tid: int, _=Depends(admin)):
+    from . import support
+    await support.close(bot, tid)
+    return {"ok": True}
 
 
 @api.get("/tonconnect-manifest.json")

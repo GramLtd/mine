@@ -1,19 +1,27 @@
+import hashlib
+import hmac
 import math
 import time
 from datetime import datetime, timedelta, timezone
 
-from . import db, settings, i18n
-from .config import (SERVERS, RENT_DAYS, FIRST_DISCOUNT, UPGRADE_MARKUP, MINING_FEE, NOFEE_PRICE,
+from . import db, settings, i18n, rewards
+from .rules import REVISION as RULES_REV
+from .config import BOT_TOKEN
+from .config import (SERVERS, RENT_DAYS, ACCRUAL_RATIO, ACCRUAL_MAX, FIRST_DISCOUNT, UPGRADE_MARKUP, MINING_FEE, NOFEE_PRICE,
                      STOCK_RESET_HOUR_MSK, COIN_PER_GH_PER_SEC, STORAGE_HOURS, SHOP, STORAGE_ITEMS)
 
 MSK = timezone(timedelta(hours=3))
 
 
 # ---------- тарифы ----------
+def accrual_ratio() -> float:
+    return min(ACCRUAL_MAX, max(0.0, float(db.get_setting("accrual_ratio", ACCRUAL_RATIO))))
+
+
 def tier_hashrate(t) -> int:
-    """GH/s, при котором сервер окупает аренду за свои «дни окупаемости» (без комиссии и бонусов)."""
-    _c, _r, price, payback, _s = SERVERS[t]
-    return round(price / payback / 86400 / COIN_PER_GH_PER_SEC)
+    """GH/s: за срок аренды сервер начисляет accrual_ratio() × цена в TON CRY (до комиссии)."""
+    price = SERVERS[t][2]
+    return round(price * accrual_ratio() / RENT_DAYS / 86400 / COIN_PER_GH_PER_SEC)
 
 
 def tier_price(t) -> float:
@@ -43,11 +51,11 @@ def stock_left(t) -> int:
 
 
 def tier_info(t, discount=False):
-    c, r, price, payback, _s = SERVERS[t]
+    c, r, price, _unused, _s = SERVERS[t]
     word = "ядро" if c % 10 == 1 and c % 100 != 11 else "ядра" if 2 <= c % 10 <= 4 and not 12 <= c % 100 <= 14 else "ядер"
     final = round(price * (1 - FIRST_DISCOUNT), 2) if discount else price
     return {"tier": t, "cores": c, "ram": r, "spec": f"{c} {word} / {r} GB RAM", "hashrate": tier_hashrate(t),
-            "price": final, "full_price": price, "payback": payback, "daily_income": round(price / payback, 3), "stock": stock_left(t), "daily": daily_stock(t)}
+            "price": final, "full_price": price, "daily_income": round(tier_hashrate(t) * 86400 * COIN_PER_GH_PER_SEC, 4), "stock": stock_left(t), "daily": daily_stock(t)}
 
 
 def upgrade_price(t) -> float:
@@ -78,9 +86,10 @@ def active_servers(user, now=None):
 
 
 def hashrate(user, now=None) -> float:
-    """Текущий суммарный хешрейт (с рефералами и бустом)."""
+    """Текущий суммарный хешрейт с учётом «удачи» этого часа (меняется каждый час)."""
     now = now or time.time()
-    return sum(tier_hashrate(s["tier"]) for s in active_servers(user, now)) * ref_mult(user) * boost(user, now)
+    hour = int(now // 3600)
+    return sum(tier_hashrate(s["tier"]) * luck(s["id"], hour) for s in active_servers(user, now)) * ref_mult(user) * boost(user, now)
 
 
 def storage_end(user) -> float:
@@ -88,44 +97,74 @@ def storage_end(user) -> float:
     return user["last_claim"] + storage_hours(user) * 3600
 
 
-def pending(user, now=None) -> float:
-    """Накоплено в хранилище: зафиксированная часть (acc) + начисление с момента фиксации по текущим серверам."""
-    now = now or time.time()
-    acc = user.get("acc") or 0.0
+# ---------- «удача» сервера: начисление TON CRY колеблется час от часу (от 50% до 150%, в среднем 100%) ----------
+_LUCK_KEY = hashlib.sha256(("luck:" + BOT_TOKEN).encode()).digest()  # секрет — игроки не могут предсказать
+
+
+def luck(server_id: int, hour: int) -> float:
+    h = hmac.new(_LUCK_KEY, f"{server_id}:{hour}".encode(), hashlib.sha256).digest()
+    return 0.5 + int.from_bytes(h[:4], "big") / 2 ** 32  # 0.5 … 1.5, среднее 1.0
+
+
+def _gh_secs(server, a, b, bu, mult, random_luck):
+    """GH·секунды сервера за [a, b]: по часам, с учётом «удачи» и буста."""
+    total, t = 0.0, a
+    while t < b:
+        hour = int(t // 3600)
+        seg_end = min(b, (hour + 1) * 3600)
+        k = luck(server["id"], hour) if random_luck else 1.0
+        boosted = max(0.0, min(seg_end, bu) - max(t, 0)) if bu > t else 0.0
+        total += k * ((seg_end - t - boosted) + boosted * mult)
+        t = seg_end
+    return tier_hashrate(server["tier"]) * total
+
+
+def _accrued(user, now, random_luck: bool) -> float:
     start = max(user["last_claim"], user.get("acc_since") or 0)
     now = min(now, storage_end(user))
     if now <= start:
-        return acc
+        return 0.0
     bu, mult = user.get("boost_until") or 0, user.get("boost_mult") or 1
-    gh_secs = 0.0
+    gh = 0.0
     for s in db.servers(user["id"], 0):
-        end = min(now, s["expires"])
-        a = max(start, s["created"])
-        if end <= a:
-            continue
-        boosted = max(0.0, min(end, bu) - a)
-        gh_secs += tier_hashrate(s["tier"]) * ((end - a - boosted) + boosted * mult)
-    return acc + gh_secs * ref_mult(user) * COIN_PER_GH_PER_SEC * (1 - fee(user))
+        end, a = min(now, s["expires"]), max(start, s["created"])
+        if end > a:
+            gh += _gh_secs(s, a, end, bu, mult, random_luck)
+    return gh * ref_mult(user) * COIN_PER_GH_PER_SEC * (1 - fee(user))
+
+
+def pending(user, now=None) -> float:
+    """Накоплено в хранилище (со случайной «удачей»): зафиксированная часть + начисление с момента фиксации."""
+    now = now or time.time()
+    return (user.get("acc") or 0.0) + _accrued(user, now, True)
+
+
+def pending_expected(user, now=None) -> float:
+    """То же по средней ставке, без случайности — по нему считаются очки программы вознаграждений."""
+    now = now or time.time()
+    return (user.get("acc_exp") or 0.0) + _accrued(user, now, False)
 
 
 def rebase(user, now=None):
     """Зафиксировать накопленное по старой мощности, не забирая его, — дальше майнинг идёт с новой мощностью."""
     now = now or time.time()
-    amount = pending(user, now)
+    amount, expected = pending(user, now), pending_expected(user, now)
     if amount <= 0:  # ничего не накоплено (например, первый сервер) — новый цикл хранилища с этого момента
-        db.update(user["id"], acc=0.0, acc_since=now, last_claim=now)
+        db.update(user["id"], acc=0.0, acc_exp=0.0, acc_since=now, last_claim=now)
     else:
-        db.update(user["id"], acc=amount, acc_since=now)
+        db.update(user["id"], acc=amount, acc_exp=expected, acc_since=now)
 
 
 def settle(user, now=None):
     """«Забрать»: перевести накопленное на баланс и начать новый цикл хранилища."""
     now = now or time.time()
-    amount = pending(user, now)
+    amount, expected = pending(user, now), pending_expected(user, now)
     # атомарно и только если с момента чтения никто не успел забрать (иначе параллельные запросы
     # затирали бы списания и начисляли награду дважды)
     if not db.claim_atomic(user["id"], amount, now, user["last_claim"], user.get("acc_since") or 0):
         return 0.0
+    # очки недели — по средней ставке: случайные колебания начисления не влияют на реальные вознаграждения
+    rewards.add_points(user, expected)
     return amount
 
 
@@ -295,4 +334,7 @@ def state(user, is_admin=False) -> dict:
                  for k, (t, d, p, c) in SHOP.items()],
         "is_admin": is_admin,
         "tutorial_done": bool(user.get("tutorial_done")),
+        "accepted": user.get("accepted_rev") == RULES_REV,
+        "rewards": rewards.current(user),
+        "accrual": accrual_ratio(),
     }

@@ -57,12 +57,13 @@ async def start(msg: Message, command: CommandObject):
         except Exception:
             pass
     if user.get("banned") and not is_admin(msg.from_user):
-        sup = settings.support()
-        await msg.answer(L(lang, "⛔️ <b>Ваш аккаунт заблокирован.</b>\n\n", "⛔️ <b>Your account is blocked.</b>\n\n") +
-                         (L(lang, f"Для разблокировки обратитесь в техподдержку: @{sup}", f"Contact support to unblock: @{sup}") if sup
-                          else L(lang, "Для разблокировки обратитесь в техподдержку.", "Contact support to unblock.")),
-                         reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(
-                             text=L(lang, "Написать в поддержку", "Contact support"), url=f"https://t.me/{sup}")]]) if sup else None)
+        await msg.answer("⛔️ <b>Your account is blocked.</b>\n\nTo contact support, just send your message in this chat.")
+        return
+    if command.args == "support":
+        await msg.answer(SUPPORT_HINT)
+        return
+    if settings.maintenance() and not is_admin(msg.from_user):
+        await msg.answer(f"🛠 <b>Maintenance</b>\n\n{html.escape(settings.maintenance_text())}\n\nYou can still write to support right here.")
         return
     try:
         await msg.answer(settings.welcome(lang), reply_markup=kb(lang))
@@ -92,6 +93,8 @@ async def admin_cmd(msg: Message):
 async def pre_checkout(q: PreCheckoutQuery):
     item, uid, stars = (q.invoice_payload.split("|") + ["", ""])[:3]
     user = db.get(q.from_user.id)
+    if settings.maintenance() and not is_admin(q.from_user):
+        return await q.answer(ok=False, error_message="Maintenance — purchases are temporarily unavailable.")
     ok = bool(user) and not user.get("banned") and uid == str(q.from_user.id) and str(q.total_amount) == stars
     if ok:
         try:
@@ -128,12 +131,54 @@ async def paid(msg: Message):
     await msg.answer(text, reply_markup=kb(lang))
 
 
+@router.message(Command("about", "rules", "terms"))
+async def about_cmd(msg: Message):
+    from . import rules
+    me = await msg.bot.me()
+    for part in rules.chunks("en", me.username, doc="rules"):
+        await msg.answer(part, disable_web_page_preview=True)
+
+
+@router.message(Command("privacy"))
+async def privacy_cmd(msg: Message):
+    from . import rules
+    me = await msg.bot.me()
+    for part in rules.chunks("en", me.username, doc="privacy"):
+        await msg.answer(part, disable_web_page_preview=True)
+
+
+SUPPORT_HINT = ("💬 <b>Support</b>\n\nDescribe your question in one message right here — it goes straight to the support team, "
+                "and the reply will come to this chat. You can also write from the app (Support at the bottom).")
+
+
+@router.message(Command("support"))
+async def support_cmd(msg: Message):
+    await msg.answer(SUPPORT_HINT)
+
+
+@router.message(Command("deletedata"))
+async def deletedata_cmd(msg: Message):
+    await msg.answer("🗑 <b>Delete personal data</b>\n\nThis removes your name and username from TonCry. Your game progress stays. "
+                     "To delete the whole account, write to support.\n\nContinue?",
+                     reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                         InlineKeyboardButton(text="Delete my name and username", callback_data="deldata:yes")]]))
+
+
+@router.callback_query(F.data == "deldata:yes")
+async def deletedata_yes(cb: CallbackQuery):
+    if db.get(cb.from_user.id):
+        db.update(cb.from_user.id, name="", username=None)
+    await cb.answer("Done")
+    try:
+        await cb.message.edit_text("✅ Your name and username have been deleted.")
+    except Exception:
+        pass
+
+
 @router.message(Command("paysupport"))
 async def paysupport(msg: Message):
-    sup = settings.support()
-    lang = lang_of(msg.from_user.id, msg.from_user)
-    await msg.answer(L(lang, f"По вопросам оплаты напишите в поддержку{': @' + sup if sup else ''}. Возврат Stars возможен по запросу.",
-                       f"For payment questions contact support{': @' + sup if sup else ''}. Stars refunds are available on request."))
+    await msg.answer("💳 <b>Payment support</b>\n\nDescribe your payment issue in one message right here — it goes to the support team. "
+                     "Telegram Stars refunds are reviewed on request.")
 
 
 # ---------- чеки: @бот 1.5 в любом чате ----------
@@ -173,6 +218,8 @@ async def inline_check(q: InlineQuery):
     open_btn = lambda t: InlineQueryResultsButton(text=t, start_parameter="checks")
     if not user or user.get("banned"):
         return await q.answer([], cache_time=0, is_personal=True, button=open_btn(L(lang, "Откройте бота, чтобы отправлять чеки", "Open the bot to send checks")))
+    if settings.maintenance() and not is_admin(q.from_user):
+        return await q.answer([], cache_time=0, is_personal=True, button=open_btn("Maintenance — checks are temporarily unavailable"))
     bal = user["balance"]
     amount, n = _parse(q.query)
     if amount is None:
@@ -240,6 +287,8 @@ async def chosen_check(r: ChosenInlineResult):
 
 @router.callback_query(F.data.startswith("c:"))
 async def claim_check(cb: CallbackQuery):
+    if settings.maintenance() and not is_admin(cb.from_user):
+        return await cb.answer("Maintenance — checks are temporarily unavailable. Try again later.", show_alert=True)
     try:
         _, creator, amt, cid = cb.data.split(":")
         creator, amount = int(creator), int(amt) / 10000
@@ -295,6 +344,8 @@ async def claim_check(cb: CallbackQuery):
 
 @router.callback_query(F.data.startswith("m:"))
 async def claim_mcheck(cb: CallbackQuery):
+    if settings.maintenance() and not is_admin(cb.from_user):
+        return await cb.answer("Maintenance — checks are temporarily unavailable. Try again later.", show_alert=True)
     try:
         _, creator, amt, total, cid = cb.data.split(":")
         creator, amount, total = int(creator), int(amt) / 10000, int(total)
@@ -349,3 +400,41 @@ async def claim_mcheck(cb: CallbackQuery):
                 "no_funds": ("У отправителя недостаточно средств", "Sender has insufficient funds")}
         ru_m, en_m = msgs.get(st, msgs["failed"])
         await cb.answer(L(lu, ru_m, en_m), show_alert=True)
+
+
+# ---------- поддержка: любые текстовые сообщения боту ----------
+_reply_to: dict = {}  # admin_id → ticket_id, после нажатия «Ответить»
+
+
+@router.callback_query(F.data.startswith("tk:"))
+async def ticket_cb(cb: CallbackQuery):
+    from . import support
+    if not is_admin(cb.from_user):
+        return await cb.answer()
+    _, act, tid = cb.data.split(":")
+    tid = int(tid)
+    if act == "r":
+        _reply_to[cb.from_user.id] = tid
+        await cb.answer()
+        await cb.message.answer(f"✍️ Напишите ответ на обращение #{tid} следующим сообщением.")
+    elif act == "c":
+        await support.close(cb.bot, tid)
+        await cb.answer(f"Обращение #{tid} закрыто")
+
+
+@router.message(F.chat.type == "private", F.text, ~F.text.startswith("/"))
+async def private_text(msg: Message):
+    from . import support
+    if is_admin(msg.from_user):
+        tid = None
+        if msg.reply_to_message:
+            tid = db.ticket_by_link(msg.from_user.id, msg.reply_to_message.message_id)
+        if not tid:
+            tid = _reply_to.pop(msg.from_user.id, None)
+        if tid:
+            ok = await support.from_admin(msg.bot, tid, msg.text)
+            await msg.answer(f"✅ Ответ на обращение #{tid} отправлен." if ok else "Не удалось отправить ответ.")
+        return
+    user, _ = db.get_or_create(msg.from_user.id, msg.from_user.first_name, username=msg.from_user.username)
+    tid = await support.from_user(msg.bot, user, msg.text)
+    await msg.answer(f"✅ Your message has been sent to support (request #{tid}). We'll reply in this chat.")

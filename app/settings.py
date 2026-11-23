@@ -2,8 +2,17 @@ from . import db
 from .config import COIN, DEFAULT_WELCOME, MIN_WITHDRAW, TON_WALLET, STAR_RUB, TON_RUB_FALLBACK
 
 
+# TON CRY — внутриигровая валюта. Назвать её ровно как реальную криптовалюту нельзя, чтобы не вводить игроков в заблуждение
+FORBIDDEN_COIN_NAMES = {"TON", "TONCOIN", "GRAM", "GRAMS", "USDT", "BTC", "ETH", "NOT", "DOGS"}
+
+
+def coin_name_allowed(name: str) -> bool:
+    return name.strip().upper() not in FORBIDDEN_COIN_NAMES
+
+
 def coin() -> str:
-    return db.get_setting("coin_name", COIN)
+    name = db.get_setting("coin_name", COIN)
+    return name if coin_name_allowed(name) else COIN
 
 
 DEFAULT_WELCOME_EN = ("<b>Welcome!</b>\n\n"
@@ -14,6 +23,19 @@ def welcome(lang="ru") -> str:
     if lang == "en":
         return db.get_setting("welcome_text_en", DEFAULT_WELCOME_EN).replace("{coin}", coin())
     return db.get_setting("welcome_text", DEFAULT_WELCOME).replace("{coin}", coin())
+
+
+DEFAULT_MAINTENANCE = ("We’re doing some maintenance right now. Your servers and balances are safe — "
+                       "please check back a little later.")
+
+
+def maintenance() -> bool:
+    """Режим техработ: игроки видят экран «Maintenance», действия для них закрыты (админы работают как обычно)."""
+    return db.get_setting("maintenance", "0") == "1"
+
+
+def maintenance_text() -> str:
+    return db.get_setting("maintenance_text", "") or DEFAULT_MAINTENANCE
 
 
 def reject_templates() -> list:
@@ -97,6 +119,11 @@ def all_settings() -> dict:
         "star_rub": star_rub(),
         "ref_bonus": ref_bonus(),
         "nofee_price": float(db.get_setting("nofee_price", 100)),
+        "maintenance": maintenance(),
+        "maintenance_text": db.get_setting("maintenance_text", ""),
+        "reward_share": float(db.get_setting("reward_share", 0.2)),
+        "reward_cap": float(db.get_setting("reward_cap", 10)),
+        "accrual_ratio": float(db.get_setting("accrual_ratio", 0.7)),
         "ton_rub": ton_rub_fallback(),
         "ton_rub_live": ton_rub(),
     }

@@ -10,6 +10,13 @@ EnvironmentFile=/opt/hashfan/.env
 Environment=DB_PATH=/opt/hashfan/game.db
 ExecStart=/opt/hashfan/.venv/bin/python main.py
 Restart=always
+# новые файлы (база, журналы SQLite) доступны только сервису
+UMask=0077
+# изоляция: сервис не видит домашние каталоги и не может менять систему
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
 RestartSec=5
 
 [Install]

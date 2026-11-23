@@ -15,7 +15,7 @@ rsync -a --exclude .git --exclude .env --exclude '*.db' "$SRC/" "$APP/"
 
 python3 -m venv "$APP/.venv"
 "$APP/.venv/bin/pip" install -q -r "$APP/requirements.txt"
-chown -R hashfan:hashfan "$APP"; chmod 600 "$APP/.env"
+chown -R hashfan:hashfan "$APP"; chmod 600 "$APP/.env"; touch "$APP/game.db"; chmod 600 "$APP/game.db"; chown hashfan:hashfan "$APP/game.db"
 
 cp "$APP/deploy/hashfan.service" /etc/systemd/system/
 sed "s/DOMAIN/$DOMAIN/g" "$APP/deploy/nginx.conf" > /etc/nginx/sites-available/hashfan

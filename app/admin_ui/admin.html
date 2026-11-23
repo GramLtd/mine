@@ -6,6 +6,7 @@
     <button data-a="users">Игроки</button>
     <button data-a="wd">Выводы</button>
     <button data-a="pays">Платежи</button>
+    <button data-a="sup">Чат</button>
     <button data-a="set">Ещё</button>
   </div>
 
@@ -18,6 +19,12 @@
     <div class="group" id="ulist"></div>
   </div>
 
+  <div id="a-sup" class="apane" hidden>
+    <div class="seg" id="tkseg" style="margin-bottom:12px"><button data-s="open" class="on">Открытые</button><button data-s="closed">Закрытые</button></div>
+    <div class="group" id="tklist"></div>
+    <p class="footnote">Обращения игроков из приложения и из чата с ботом. Ответить можно здесь или реплаем на уведомление в боте — игрок получит ответ от имени бота.</p>
+  </div>
+
   <div id="a-pays" class="apane" hidden>
     <div class="group" id="plist"></div>
   </div>
@@ -27,7 +34,7 @@
       <button data-s="pending" class="on">Ожидают</button><button data-s="paid">Выплачены</button><button data-s="rejected">Отклонены</button>
     </div>
     <div class="group" id="wdlist"></div>
-    <p class="footnote">Отправьте TON на адрес вручную со своего кошелька, затем нажмите «Выплачено» — игрок получит уведомление. «Отклонить» вернёт монеты на баланс.</p>
+    <p class="footnote">Это выводы вознаграждений из призового фонда (в TON). Отправьте TON на адрес вручную со своего кошелька, затем нажмите «Выплачено» — игрок получит уведомление. «Отклонить» вернёт сумму на баланс вознаграждений.</p>
   </div>
 
   <div id="a-set" class="apane" hidden>
@@ -35,11 +42,17 @@
     <div class="group">
       <label class="cell field noicon"><span>Название</span><input id="s-coin" maxlength="16" placeholder="HASH"></label>
     </div>
+    <div class="caption">Техработы</div>
+    <div class="group">
+      <div class="cell field noicon"><span>Закрыть на техработы</span><label class="sw"><input type="checkbox" id="s-maint"><span></span></label></div>
+    </div>
+    <textarea id="s-maint-text" placeholder="Текст для игроков (по-английски). Пусто — стандартный: We’re doing some maintenance right now…" style="margin-top:8px;min-height:70px"></textarea>
+    <p class="footnote">Игроки увидят экран Maintenance с этим текстом, покупки, сбор, вывод и чеки будут закрыты. Начисление майнинга идёт. Админы работают как обычно. Поддержка остаётся доступной.</p>
     <div class="caption">Техподдержка</div>
     <div class="group">
       <label class="cell field noicon"><span>Username ТП</span><input id="s-support" placeholder="@support" autocapitalize="off"></label>
     </div>
-    <p class="footnote">Показывается заблокированным игрокам и в /paysupport.</p>
+    <p class="footnote">Сейчас не используется: поддержка работает прямо в боте (вкладка «Чат»).</p>
     <div class="caption">Вывод</div>
     <div class="group">
       <div class="cell field noicon"><span>Вывод включён</span><label class="sw"><input type="checkbox" id="s-wden"><span></span></label></div>
@@ -48,7 +61,10 @@
     <div class="caption">Оплата в TON</div>
     <div class="group">
       <label class="cell field noicon"><span>Кошелёк</span><input id="s-tonw" placeholder="UQ…" autocapitalize="off" spellcheck="false"></label>
-      <label class="cell field noicon"><span>Бонус за друга, TON</span><input id="s-ref" type="number" step="any" inputmode="decimal"></label>
+      <label class="cell field noicon"><span>Призовой фонд, % выручки</span><input id="s-rshare" type="number" step="1" inputmode="decimal"></label>
+      <label class="cell field noicon"><span>Лимит на игрока, TON/нед</span><input id="s-rcap" type="number" step="any" inputmode="decimal"></label>
+      <label class="cell field noicon"><span>Начисление за аренду, % цены</span><input id="s-accr" type="number" step="1" inputmode="decimal"></label>
+      <label class="cell field noicon"><span>Бонус за друга, TON CRY</span><input id="s-ref" type="number" step="any" inputmode="decimal"></label>
       <label class="cell field noicon"><span>Отключить комиссию, TON</span><input id="s-nofee" type="number" step="any" inputmode="decimal"></label>
       <label class="cell field noicon"><span>1 звезда, ₽</span><input id="s-starrub" type="number" step="any" inputmode="decimal"></label>
       <label class="cell field noicon"><span>Запасной курс TON, ₽</span><input id="s-tonrub" type="number" step="any" inputmode="decimal"></label>
@@ -82,6 +98,17 @@
     <p class="footnote">~20 сообщений в секунду. По окончании бот пришлёт отчёт.</p>
   </div>
 </section>
+
+<!-- ============ ОБРАЩЕНИЕ ============ -->
+<div class="scrim" id="tk-scrim"></div>
+<div class="sheet" id="tk-sheet">
+  <div class="grabber"></div>
+  <div class="sheet-head"><button id="tk-cancel">Закрыть</button><h3 id="tk-title">Обращение</h3><button id="tk-close" style="font-weight:600">Закрыть тикет</button></div>
+  <p class="footnote" id="tk-info" style="margin-top:0"></p>
+  <div class="chat" id="tk-chat"></div>
+  <textarea id="tk-text" placeholder="Ответ игроку" style="min-height:80px"></textarea>
+  <button class="btn primary" id="tk-send" style="width:100%;margin-top:10px">Отправить ответ</button>
+</div>
 
 <!-- ============ ОТКЛОНЕНИЕ ВЫВОДА ============ -->
 <div class="scrim" id="rj-scrim"></div>
@@ -134,7 +161,7 @@ document.querySelectorAll('#aseg button').forEach(b => b.onclick = () => {
   pane = b.dataset.a; document.querySelectorAll('.apane').forEach(p => p.hidden = p.id !== 'a-' + pane);
   haptic('selectionChanged'); loadAdmin();
 });
-function loadAdmin() { ({ overview: loadStats, users: loadUsers, wd: loadWd, pays: loadPays, set: loadSettings })[pane]().catch(e => hud(e.message, false)); }
+function loadAdmin() { ({ overview: loadStats, users: loadUsers, wd: loadWd, pays: loadPays, sup: loadTickets, set: loadSettings })[pane]().catch(e => hud(e.message, false)); }
 
 async function loadStats() {
   const s = await api('/api/admin/stats');
@@ -147,6 +174,8 @@ async function loadStats() {
     ['bag', 'Покупки с баланса', fmt(s.bal_total, 2), `+${fmt(s.bal_24h, 2)} за сутки · ${s.bal_count} шт`],
     ['up', 'Выплачено', fmt(s.wd_paid, 2), `+${fmt(s.wd_paid_24h, 2)} за сутки`],
     ['down', 'Выводы ждут', s.wd_pending.toLocaleString('ru'), `на ${fmt(s.wd_pending_sum, 2)}`],
+    ['gift', 'Фонд этой недели', fmt(s.week_fund, 2), `${Math.round(s.reward_share * 100)}% от выручки ${fmt(s.week_revenue, 2)} TON`],
+    ['gift', 'Вознаграждения', fmt(s.rewards_paid, 2), `не выведено: ${fmt(s.reward_balances, 2)} · чат: ${s.tickets_open} откр.`],
   ];
   const g = $('stats'); g.innerHTML = '';
   tiles.forEach(([ic, t, v, d]) => {
@@ -233,6 +262,42 @@ $('bcsend').onclick = () => {
 };
 
 
+/* ---------- поддержка ---------- */
+let tkStatus = 'open', tkCur = null;
+document.querySelectorAll('#tkseg button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('#tkseg button').forEach(x => x.classList.toggle('on', x === b)); tkStatus = b.dataset.s; loadTickets();
+});
+async function loadTickets() {
+  const { tickets } = await api('/api/admin/tickets?status=' + tkStatus); const box = $('tklist'); box.innerHTML = '';
+  if (!tickets.length) box.append(el('div', { class: 'empty' }, 'Обращений нет'));
+  tickets.forEach(t => {
+    const c = el('div', { class: 'cell', style: 'cursor:pointer' }, icon(t.last_admin ? 'paper' : 'person', t.last_admin ? 'var(--green)' : 'var(--orange)'),
+      el('div', { class: 'tx' }, el('b', {}, `#${t.id} · ${t.name || t.user_id}${t.username ? ' @' + t.username : ''}`),
+        el('small', { style: 'white-space:nowrap;overflow:hidden;text-overflow:ellipsis' }, (t.last_admin ? 'Вы: ' : '') + (t.last || ''))),
+      el('span', { class: 'val' }, ago(t.updated)));
+    c.onclick = () => openTicket(t.id); box.append(c);
+  });
+}
+function tkSheet(on) { $('tk-scrim').classList.toggle('on', on); $('tk-sheet').classList.toggle('on', on); }
+$('tk-scrim').onclick = $('tk-cancel').onclick = () => tkSheet(false);
+function renderTk(t) {
+  tkCur = t; $('tk-title').textContent = `Обращение #${t.id}`;
+  $('tk-info').textContent = `${t.name || ''}${t.username ? ' @' + t.username : ''} · ID ${t.user_id} · ${t.status === 'open' ? 'открыто' : 'закрыто'}`;
+  const box = $('tk-chat'); box.innerHTML = '';
+  t.messages.forEach(m => box.append(el('div', { class: 'm ' + (m.from_admin ? 'me' : 'sup') }, m.text, el('small', {}, ago(m.created) + ' назад'))));
+  box.scrollTop = box.scrollHeight;
+}
+async function openTicket(id) { try { renderTk(await api('/api/admin/tickets/' + id)); tkSheet(true); } catch (e) { hud(e.message, false); } }
+$('tk-send').onclick = async () => {
+  const text = $('tk-text').value.trim(); if (!text || !tkCur) return;
+  try { renderTk(await api(`/api/admin/tickets/${tkCur.id}/reply`, 'POST', { text })); $('tk-text').value = ''; hud('Ответ отправлен'); loadTickets(); }
+  catch (e) { hud(e.message, false); }
+};
+$('tk-close').onclick = async () => {
+  if (!tkCur) return;
+  try { await api(`/api/admin/tickets/${tkCur.id}/close`, 'POST'); tkSheet(false); hud('Обращение закрыто'); loadTickets(); } catch (e) { hud(e.message, false); }
+};
+
 /* ---------- выводы ---------- */
 let wdStatus = 'pending';
 document.querySelectorAll('#wdseg button').forEach(b => b.onclick = () => {
@@ -312,11 +377,11 @@ async function loadSettings() {
   loadMs();
   const s = await api('/api/admin/settings');
   $('s-coin').value = s.coin_name; $('s-min').value = s.min_withdraw; $('s-wden').checked = s.withdraw_enabled; $('s-welcome').value = s.welcome_text; $('s-welcome-en').value = s.welcome_text_en || ''; $('s-support').value = s.support_username ? '@' + s.support_username : '';
-  $('s-tonw').value = s.ton_wallet || ''; $('s-starrub').value = s.star_rub; $('s-nofee').value = s.nofee_price; $('s-ref').value = s.ref_bonus; $('s-stock').value = (S?.servers || []).map(x => x.daily ?? '').join(', '); $('s-tonrub').value = s.ton_rub; $('s-ton-note').textContent = `Цены в TON = звёзды × цена звезды / курс TON. Сейчас 1 TON ≈ ${s.ton_rub_live.toFixed(2)} ₽ (tonapi.io; запасной курс — если сервис недоступен). Пустой кошелёк — оплата в TON отключена.`;
+  $('s-tonw').value = s.ton_wallet || ''; $('s-starrub').value = s.star_rub; $('s-nofee').value = s.nofee_price; $('s-maint').checked = !!s.maintenance; $('s-maint-text').value = s.maintenance_text || ''; $('s-ref').value = s.ref_bonus; $('s-rshare').value = Math.round(s.reward_share * 100); $('s-rcap').value = s.reward_cap; $('s-accr').value = Math.round(s.accrual_ratio * 100); $('s-stock').value = (S?.servers || []).map(x => x.daily ?? '').join(', '); $('s-tonrub').value = s.ton_rub; $('s-ton-note').textContent = `Цены в TON = звёзды × цена звезды / курс TON. Сейчас 1 TON ≈ ${s.ton_rub_live.toFixed(2)} ₽ (tonapi.io; запасной курс — если сервис недоступен). Пустой кошелёк — оплата в TON отключена.`;
 }
 $('s-save').onclick = async () => {
   try {
-    await api('/api/admin/settings', 'POST', { coin_name: $('s-coin').value, min_withdraw: +$('s-min').value, withdraw_enabled: $('s-wden').checked, welcome_text: $('s-welcome').value, welcome_text_en: $('s-welcome-en').value, support_username: $('s-support').value, ton_wallet: $('s-tonw').value, star_rub: +$('s-starrub').value, nofee_price: +$('s-nofee').value, ref_bonus: +$('s-ref').value, ...($('s-stock').value.trim() ? { stock_daily: $('s-stock').value.split(',').map(x => +x.trim() || 0) } : {}), ton_rub: +$('s-tonrub').value }); loadSettings();
+    await api('/api/admin/settings', 'POST', { coin_name: $('s-coin').value, min_withdraw: +$('s-min').value, withdraw_enabled: $('s-wden').checked, welcome_text: $('s-welcome').value, welcome_text_en: $('s-welcome-en').value, support_username: $('s-support').value, ton_wallet: $('s-tonw').value, star_rub: +$('s-starrub').value, nofee_price: +$('s-nofee').value, maintenance: $('s-maint').checked, maintenance_text: $('s-maint-text').value, ref_bonus: +$('s-ref').value, reward_share: +$('s-rshare').value / 100, reward_cap: +$('s-rcap').value, accrual_ratio: +$('s-accr').value / 100, ...($('s-stock').value.trim() ? { stock_daily: $('s-stock').value.split(',').map(x => +x.trim() || 0) } : {}), ton_rub: +$('s-tonrub').value }); loadSettings();
     hud('Сохранено'); render(await api('/api/state'));
   } catch (e) { hud(e.message, false); }
 };

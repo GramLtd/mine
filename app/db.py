@@ -66,6 +66,14 @@ def init():
             created REAL,
             finished REAL
         );
+        CREATE TABLE IF NOT EXISTS tickets(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, status TEXT DEFAULT 'open',
+            created REAL, updated REAL);
+        CREATE TABLE IF NOT EXISTS ticket_msgs(id INTEGER PRIMARY KEY AUTOINCREMENT, ticket_id INTEGER, from_admin INTEGER,
+            text TEXT, created REAL);
+        CREATE TABLE IF NOT EXISTS ticket_links(admin_id INTEGER, msg_id INTEGER, ticket_id INTEGER, PRIMARY KEY(admin_id, msg_id));
+        CREATE TABLE IF NOT EXISTS week_points(week INTEGER, user_id INTEGER, points REAL, PRIMARY KEY(week, user_id));
+        CREATE TABLE IF NOT EXISTS rewards(week INTEGER, user_id INTEGER, amount REAL, created REAL, PRIMARY KEY(week, user_id));
+        CREATE TABLE IF NOT EXISTS reward_weeks(week INTEGER PRIMARY KEY, revenue REAL, fund REAL, paid REAL, players INTEGER, created REAL);
         CREATE TABLE IF NOT EXISTS balance_buys(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER,
@@ -114,12 +122,14 @@ def init():
                 c.execute(f"ALTER TABLE users ADD COLUMN {col} {ddl}")
         if "activated" not in cols:
             c.execute("ALTER TABLE users ADD COLUMN activated INTEGER DEFAULT 1")
-        for col, ddl in [("no_fee", "INTEGER DEFAULT 0"), ("bought_server", "INTEGER DEFAULT 0"), ("tutorial_done", "INTEGER DEFAULT 0"), ("acc", "REAL DEFAULT 0"), ("acc_since", "REAL DEFAULT 0"), ("lang", "TEXT DEFAULT ''")]:
+        for col, ddl in [("no_fee", "INTEGER DEFAULT 0"), ("bought_server", "INTEGER DEFAULT 0"), ("tutorial_done", "INTEGER DEFAULT 0"), ("acc", "REAL DEFAULT 0"), ("acc_since", "REAL DEFAULT 0"), ("lang", "TEXT DEFAULT ''"), ("reward_balance", "REAL DEFAULT 0"), ("acc_exp", "REAL DEFAULT 0"), ("accepted_at", "REAL DEFAULT 0"), ("accepted_rev", "TEXT DEFAULT ''")]:
             if col not in cols:
                 c.execute(f"ALTER TABLE users ADD COLUMN {col} {ddl}")
         wcols = {r["name"] for r in c.execute("PRAGMA table_info(withdrawals)")}
         if "reason" not in wcols:
             c.execute("ALTER TABLE withdrawals ADD COLUMN reason TEXT")
+        if "source" not in wcols:  # coins — старые заявки (вывод монет), reward — вывод вознаграждений
+            c.execute("ALTER TABLE withdrawals ADD COLUMN source TEXT DEFAULT 'coins'")
         if "ref_paid" not in cols:  # бонус за друга — когда он арендует первый сервер; старым не платим повторно
             c.execute("ALTER TABLE users ADD COLUMN ref_paid INTEGER DEFAULT 0")
             c.execute("UPDATE users SET ref_paid=1 WHERE bought_server=1")
@@ -242,6 +252,9 @@ def stats():
             "wd_pending_sum": q("SELECT COALESCE(SUM(amount),0) FROM withdrawals WHERE status='pending'"),
             "wd_paid_24h": q("SELECT COALESCE(SUM(amount),0) FROM withdrawals WHERE status='paid' AND processed>?", day),
             "stars_refunded": q("SELECT COALESCE(SUM(stars),0) FROM payments WHERE refunded=1"),
+            "rewards_paid": q("SELECT COALESCE(SUM(amount),0) FROM rewards"),
+            "reward_balances": q("SELECT COALESCE(SUM(reward_balance),0) FROM users"),
+            "tickets_open": q("SELECT COUNT(*) FROM tickets WHERE status='open'"),
         }
 
 
@@ -297,16 +310,16 @@ def set_setting(key, value):
 
 
 # --- выводы ---
-def create_withdrawal(uid, amount, address) -> int | None:
+def create_withdrawal(uid, amount, address) -> int | None:  # вывод вознаграждений (reward_balance)
     """Атомарно списывает баланс и создаёт заявку. None — не хватает средств или уже есть заявка."""
     with conn() as c:
         c.execute("BEGIN IMMEDIATE")  # иначе два одновременных запроса создадут две заявки
         if c.execute("SELECT 1 FROM withdrawals WHERE user_id=? AND status='pending'", (uid,)).fetchone():
             return None
-        cur = c.execute("UPDATE users SET balance=balance-? WHERE id=? AND balance>=?", (amount, uid, amount))
+        cur = c.execute("UPDATE users SET reward_balance=reward_balance-? WHERE id=? AND reward_balance>=?", (amount, uid, amount))
         if cur.rowcount != 1:
             return None
-        return c.execute("INSERT INTO withdrawals(user_id,amount,address,created) VALUES(?,?,?,?)",
+        return c.execute("INSERT INTO withdrawals(user_id,amount,address,created,source) VALUES(?,?,?,?,'reward')",
                          (uid, amount, address, time.time())).lastrowid
 
 
@@ -331,7 +344,8 @@ def finish_withdrawal(wid, status, tx=None, reason=None):
         c.execute("UPDATE withdrawals SET status=?, tx=?, reason=?, processed=? WHERE id=?",
                   (status, tx, reason, time.time(), wid))
         if status == "rejected":
-            c.execute("UPDATE users SET balance=balance+? WHERE id=?", (w["amount"], w["user_id"]))
+            col = "reward_balance" if w["source"] == "reward" else "balance"
+            c.execute(f"UPDATE users SET {col}={col}+? WHERE id=?", (w["amount"], w["user_id"]))
         return dict(w)
 
 
@@ -620,6 +634,129 @@ def daily_take(uid, bonus) -> bool:
 def claim_atomic(uid, amount, now, old_last_claim, old_acc_since) -> bool:
     with conn() as c:
         return c.execute(
-            "UPDATE users SET balance=balance+?, last_claim=?, acc=0, acc_since=? "
+            "UPDATE users SET balance=balance+?, last_claim=?, acc=0, acc_exp=0, acc_since=? "
             "WHERE id=? AND last_claim=? AND COALESCE(acc_since,0)=?",
             (amount, now, now, uid, old_last_claim, old_acc_since)).rowcount == 1
+
+
+# ---------- программа вознаграждений ----------
+def points_add(week, uid, pts):
+    with conn() as c:
+        c.execute("INSERT INTO week_points VALUES(?,?,?) ON CONFLICT(week,user_id) DO UPDATE SET points=points+excluded.points",
+                  (week, uid, pts))
+
+
+def week_points(week, uid):
+    with conn() as c:
+        r = c.execute("SELECT points FROM week_points WHERE week=? AND user_id=?", (week, uid)).fetchone()
+        tot = c.execute("SELECT COALESCE(SUM(p.points),0) FROM week_points p JOIN users u ON u.id=p.user_id "
+                        "WHERE p.week=? AND u.bought_server=1 AND u.banned=0", (week,)).fetchone()[0]
+        return (r["points"] if r else 0.0), tot
+
+
+def revenue_between(start, end, stars_to_ton):
+    """Выручка сервиса за период в TON: платежи TON (пополнения и покупки) + Stars по курсу."""
+    with conn() as c:
+        ton = c.execute("SELECT COALESCE(SUM(nano),0)/1e9 FROM ton_orders WHERE status='paid' AND paid>=? AND paid<?",
+                        (start, end)).fetchone()[0]
+        stars = c.execute("SELECT COALESCE(SUM(stars),0) FROM payments WHERE refunded=0 AND created>=? AND created<?",
+                          (start, end)).fetchone()[0]
+    return ton + stars * stars_to_ton
+
+
+def reward_week_done(week) -> bool:
+    with conn() as c:
+        return bool(c.execute("SELECT 1 FROM reward_weeks WHERE week=?", (week,)).fetchone())
+
+
+def distribute_week(week, revenue, fund, cap) -> list:
+    """Делит фонд между участниками пропорционально очкам (не больше cap каждому). Один раз на неделю."""
+    with conn() as c:
+        c.execute("BEGIN IMMEDIATE")
+        if c.execute("SELECT 1 FROM reward_weeks WHERE week=?", (week,)).fetchone():
+            return []
+        rows = [dict(r) for r in c.execute(
+            "SELECT p.user_id, p.points FROM week_points p JOIN users u ON u.id=p.user_id "
+            "WHERE p.week=? AND p.points>0 AND u.bought_server=1 AND u.banned=0", (week,))]
+        total = sum(r["points"] for r in rows)
+        paid, out = 0.0, []
+        for r in rows:
+            amt = round(min(cap, fund * r["points"] / total), 4) if total > 0 else 0
+            if amt <= 0:
+                continue
+            c.execute("INSERT INTO rewards VALUES(?,?,?,?)", (week, r["user_id"], amt, time.time()))
+            c.execute("UPDATE users SET reward_balance=reward_balance+? WHERE id=?", (amt, r["user_id"]))
+            paid += amt
+            out.append((r["user_id"], amt))
+        c.execute("INSERT INTO reward_weeks VALUES(?,?,?,?,?,?)", (week, revenue, fund, paid, len(out), time.time()))
+        return out
+
+
+def reward_history(uid, limit=10):
+    with conn() as c:
+        return [dict(r) for r in c.execute("SELECT week, amount, created FROM rewards WHERE user_id=? ORDER BY week DESC LIMIT ?",
+                                           (uid, limit))]
+
+
+def reward_weeks(limit=10):
+    with conn() as c:
+        return [dict(r) for r in c.execute("SELECT * FROM reward_weeks ORDER BY week DESC LIMIT ?", (limit,))]
+
+
+# ---------- поддержка ----------
+def ticket_open_for(uid) -> int:
+    """Открытое обращение игрока (или новое)."""
+    with conn() as c:
+        r = c.execute("SELECT id FROM tickets WHERE user_id=? AND status='open' ORDER BY id DESC LIMIT 1", (uid,)).fetchone()
+        if r:
+            return r["id"]
+        now = time.time()
+        return c.execute("INSERT INTO tickets(user_id,status,created,updated) VALUES(?,'open',?,?)", (uid, now, now)).lastrowid
+
+
+def ticket_add(tid, text, from_admin=False):
+    now = time.time()
+    with conn() as c:
+        c.execute("INSERT INTO ticket_msgs(ticket_id,from_admin,text,created) VALUES(?,?,?,?)", (tid, int(from_admin), text[:4000], now))
+        c.execute("UPDATE tickets SET updated=?, status='open' WHERE id=?", (now, tid))
+
+
+def ticket_get(tid):
+    with conn() as c:
+        r = c.execute("SELECT t.*, u.name, u.username FROM tickets t LEFT JOIN users u ON u.id=t.user_id WHERE t.id=?", (tid,)).fetchone()
+        if not r:
+            return None
+        t = dict(r)
+        t["messages"] = [dict(m) for m in c.execute("SELECT from_admin, text, created FROM ticket_msgs WHERE ticket_id=? ORDER BY id", (tid,))]
+        return t
+
+
+def ticket_messages_for_user(uid, limit=50):
+    with conn() as c:
+        return [dict(m) for m in c.execute(
+            "SELECT m.from_admin, m.text, m.created FROM ticket_msgs m JOIN tickets t ON t.id=m.ticket_id "
+            "WHERE t.user_id=? ORDER BY m.id DESC LIMIT ?", (uid, limit))][::-1]
+
+
+def tickets(status="open", limit=50):
+    with conn() as c:
+        return [dict(r) for r in c.execute(
+            "SELECT t.*, u.name, u.username, (SELECT text FROM ticket_msgs m WHERE m.ticket_id=t.id ORDER BY m.id DESC LIMIT 1) AS last, "
+            "(SELECT from_admin FROM ticket_msgs m WHERE m.ticket_id=t.id ORDER BY m.id DESC LIMIT 1) AS last_admin "
+            "FROM tickets t LEFT JOIN users u ON u.id=t.user_id WHERE t.status=? ORDER BY t.updated DESC LIMIT ?", (status, limit))]
+
+
+def ticket_close(tid):
+    with conn() as c:
+        c.execute("UPDATE tickets SET status='closed', updated=? WHERE id=?", (time.time(), tid))
+
+
+def ticket_link(admin_id, msg_id, tid):
+    with conn() as c:
+        c.execute("INSERT OR REPLACE INTO ticket_links VALUES(?,?,?)", (admin_id, msg_id, tid))
+
+
+def ticket_by_link(admin_id, msg_id):
+    with conn() as c:
+        r = c.execute("SELECT ticket_id FROM ticket_links WHERE admin_id=? AND msg_id=?", (admin_id, msg_id)).fetchone()
+        return r["ticket_id"] if r else None
