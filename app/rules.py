@@ -50,7 +50,7 @@ RULES = """<b>TonCry — Rules of the Service</b>
 6.2. Selling {coin} or accounts for money, crypto or other consideration is prohibited; the Service takes no part in such deals.
 
 <b>7. Rewards Program</b>
-7.1. Each week (Monday 00:00 to Monday 00:00, Moscow time) the Service sets aside a <b>prize fund equal to {share}% of the Service’s revenue for that week</b>. The fund size is shown in the app.
+7.1. Each week (Monday 00:00 to Monday 00:00, Moscow time) the Service sets aside a <b>prize fund equal to {share}% of the Service’s revenue for that week</b>.
 7.2. The fund is shared among eligible Users in proportion to their game activity — the {coin} they collected with “Claim” during the week, <b>counted at their servers’ base rate</b>, so random fluctuations of output do not affect rewards. One User receives no more than <b>{cap} TON</b> per week. Unallocated funds are not paid out.
 7.3. To be eligible, the User must have rented at least one Game server with a payment.
 7.4. Rewards are credited in Toncoin (TON) to the User’s rewards balance after the week ends. The User may request a payout of the rewards balance to a TON wallet; the minimum is {min_wd} TON. Requests are reviewed manually.

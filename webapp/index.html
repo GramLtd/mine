@@ -542,7 +542,7 @@ textarea{width:100%;min-height:140px;border:0;outline:none;background:var(--bg2)
   <div class="grabber"></div>
   <div class="sheet-head"><button id="rw-close">Close</button><h3>Weekly rewards</h3><span style="width:60px"></span></div>
   <div class="group">
-    <div class="cell"><div class="ic" style="background:var(--orange)"><svg><use href="#i-gift"/></svg></div><div class="tx"><b>Prize fund this week</b><small id="rw-fund-s"></small></div><span class="val num" id="rw-fund"></span></div>
+    <div class="cell"><div class="ic" style="background:var(--orange)"><svg><use href="#i-gift"/></svg></div><div class="tx"><b>Prize fund this week</b><small id="rw-fund-s"></small></div></div>
     <div class="cell"><div class="ic" style="background:var(--indigo)"><svg><use href="#i-bolt"/></svg></div><div class="tx"><b>Your activity</b><small id="rw-pts-s"></small></div><span class="val num" id="rw-pts"></span></div>
     <div class="cell"><div class="ic" style="background:var(--green)"><svg><use href="#i-up"/></svg></div><div class="tx"><b>Your estimated reward</b><small id="rw-est-s"></small></div><span class="val num" id="rw-est"></span></div>
   </div>
@@ -1125,10 +1125,9 @@ function rwSheet(on) { $('rw-scrim').classList.toggle('on', on); $('rw-sheet').c
 $('rw-scrim').onclick = $('rw-close').onclick = () => rwSheet(false);
 function renderRewards() {
   const r = S.rewards, left = Math.max(0, r.ends_at - Date.now() / 1000), d = Math.floor(left / 86400), h = Math.floor(left % 86400 / 3600);
-  $('rw-fund').textContent = `${fmt(r.fund, 2)} TON`;
   $('rw-fund-s').textContent = `${Math.round(r.share * 100)}% of this week’s revenue · ends in ${d ? d + 'd ' : ''}${h}h`;
   $('rw-pts').textContent = fmt(r.points, 2);
-  $('rw-pts-s').textContent = `${S.coin} collected this week (of ${fmt(r.total_points, 2)} by all players)`;
+  $('rw-pts-s').textContent = `${S.coin} collected this week`;
   $('rw-est').textContent = r.eligible ? `≈ ${fmt(r.estimate, 2)} TON` : '—';
   $('rw-est-s').textContent = r.eligible ? `Max ${r.cap} TON per week · changes as others play` : 'Rent at least one server to take part';
   $('rw-bal').textContent = `${fmt(r.balance, 4)} TON`;

@@ -46,7 +46,8 @@ def current(user) -> dict:
     fund = rev * share()
     mine, total = db.week_points(week_id(), user["id"])
     est = min(cap(), fund * mine / total) if total > 0 and user.get("bought_server") else 0.0
-    return {"fund": round(fund, 4), "points": mine, "total_points": total, "estimate": round(est, 4),
+    # размер фонда и общую активность игрокам не отдаём — только их собственные данные и оценку награды
+    return {"points": mine, "estimate": round(est, 4),
             "ends_at": start + 7 * 86400, "share": share(), "cap": cap(), "eligible": bool(user.get("bought_server")),
             "balance": user.get("reward_balance") or 0.0, "history": db.reward_history(user["id"], 5)}
 
