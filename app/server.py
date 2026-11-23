@@ -59,8 +59,8 @@ async def rate_limit(request, call_next):
 @api.middleware("http")
 async def lang_mw(request, call_next):
     """Язык интерфейса игрока: заголовок X-Lang (ru/en) от мини-приложения."""
-    lang = request.headers.get("x-lang", "ru")
-    i18n.lang_var.set("en" if lang == "en" else "ru")
+    # игрокам — только английский; ответы админки (/api/admin) не переводятся
+    i18n.lang_var.set(i18n.PLAYER_LANG)
     return await call_next(request)
 
 

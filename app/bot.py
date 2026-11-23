@@ -22,11 +22,8 @@ def is_admin(u) -> bool:
 
 
 def lang_of(uid, tg_user=None) -> str:
-    """Язык игрока: выбранный в приложении, иначе — язык Telegram."""
-    u = db.get(uid)
-    if u and u.get("lang"):
-        return u["lang"]
-    return norm(getattr(tg_user, "language_code", None))
+    """Язык игрока — бот для игроков работает только на английском."""
+    return norm(None)
 
 
 def kb(lang="ru"):

@@ -2,13 +2,9 @@
    Тексты в разметке и коде написаны по-русски; этот модуль переводит каждый текст при появлении на экране
    (словарь точных фраз + шаблоны для фраз с числами). Админка (#admin-root) не переводится. */
 (function () {
-  const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
-  let saved = null; try { saved = localStorage.getItem('lang'); } catch {}
-  const code = (tgUser?.language_code || navigator.language || 'ru').slice(0, 2).toLowerCase();
-  const RU_LIKE = ['ru', 'uk', 'be', 'kk', 'uz', 'ky', 'tg', 'hy', 'az', 'ka'];
-  const LANG = saved || (RU_LIKE.includes(code) ? 'ru' : 'en');
+  const LANG = 'en';  // только английский для игроков (админка внутри #admin-root остаётся на русском)
   window.LANG = LANG;
-  window.setLang = l => { try { localStorage.setItem('lang', l); } catch {} location.reload(); };
+  window.setLang = () => {};
   document.documentElement.lang = LANG;
   if (LANG !== 'en') { window.tr = s => s; return; }
 

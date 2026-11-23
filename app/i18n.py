@@ -2,12 +2,14 @@
 import contextvars
 import re
 
-lang_var: contextvars.ContextVar[str] = contextvars.ContextVar("lang", default="ru")
+lang_var: contextvars.ContextVar[str] = contextvars.ContextVar("lang", default="en")
+
+
+PLAYER_LANG = "en"  # интерфейс для игроков только на английском (админка остаётся на русском)
 
 
 def norm(code: str | None) -> str:
-    code = (code or "").lower()
-    return "ru" if code[:2] in ("ru", "uk", "be", "kk", "uz", "ky", "tg", "hy", "az", "ka") else "en"
+    return PLAYER_LANG
 
 
 EN = {
