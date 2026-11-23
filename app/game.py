@@ -334,6 +334,7 @@ def state(user, is_admin=False) -> dict:
                  for k, (t, d, p, c) in SHOP.items()],
         "is_admin": is_admin,
         "tutorial_done": bool(user.get("tutorial_done")),
+        "bot": db.get_setting("bot_username", ""),
         "accepted": user.get("accepted_rev") == RULES_REV,
         "rewards": rewards.current(user),
         "accrual": accrual_speed(),

@@ -128,6 +128,10 @@ def init():
         wcols = {r["name"] for r in c.execute("PRAGMA table_info(withdrawals)")}
         if "reason" not in wcols:
             c.execute("ALTER TABLE withdrawals ADD COLUMN reason TEXT")
+        mcols = {r["name"] for r in c.execute("PRAGMA table_info(mchecks)")}
+        for col, ddl in [("description", "TEXT DEFAULT ''"), ("require_chat", "TEXT DEFAULT ''")]:
+            if col not in mcols:
+                c.execute(f"ALTER TABLE mchecks ADD COLUMN {col} {ddl}")
         for tbl in ("ton_orders", "payments"):  # test=1 — тестовый платёж, не идёт в призовой фонд
             if "test" not in {r["name"] for r in c.execute(f"PRAGMA table_info({tbl})")}:
                 c.execute(f"ALTER TABLE {tbl} ADD COLUMN test INTEGER DEFAULT 0")
@@ -777,3 +781,27 @@ def ticket_by_link(admin_id, msg_id):
     with conn() as c:
         r = c.execute("SELECT ticket_id FROM ticket_links WHERE admin_id=? AND msg_id=?", (admin_id, msg_id)).fetchone()
         return r["ticket_id"] if r else None
+
+
+# ---------- чеки из меню /checks (сумма резервируется сразу при создании) ----------
+def check_create(nonce, creator, amount, total) -> bool:
+    with conn() as c:
+        c.execute("BEGIN IMMEDIATE")
+        s = amount * total
+        if c.execute("UPDATE users SET balance=balance-? WHERE id=? AND balance>=?", (s, creator, s)).rowcount != 1:
+            return False
+        c.execute("INSERT INTO mchecks(nonce,creator,amount,total,status,created) VALUES(?,?,?,?,'active',?)",
+                  (nonce, creator, amount, total, time.time()))
+        return True
+
+
+def checks_of(uid, limit=10):
+    with conn() as c:
+        return [dict(r) for r in c.execute(
+            "SELECT * FROM mchecks WHERE creator=? AND status='active' ORDER BY created DESC LIMIT ?", (uid, limit))]
+
+
+def check_set(nonce, creator, **f):
+    with conn() as c:
+        keys = ", ".join(f"{k}=?" for k in f)
+        return c.execute(f"UPDATE mchecks SET {keys} WHERE nonce=? AND creator=?", (*f.values(), nonce, creator)).rowcount == 1

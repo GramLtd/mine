@@ -62,6 +62,12 @@ async def start(msg: Message, command: CommandObject):
     if command.args == "support":
         await msg.answer(SUPPORT_HINT)
         return
+    if command.args == "checks":
+        from . import checks
+        return await checks.menu(msg)
+    if command.args and re.fullmatch(r"c_[0-9a-f]{16}", command.args):
+        from . import checks
+        return await checks.start_activate(msg, command.args[2:])
     if settings.maintenance() and not is_admin(msg.from_user):
         await msg.answer(f"🛠 <b>Maintenance</b>\n\n{html.escape(settings.maintenance_text())}\n\nYou can still write to support right here.")
         return
