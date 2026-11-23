@@ -312,7 +312,7 @@ textarea{width:100%;min-height:140px;border:0;outline:none;background:var(--bg2)
 <!-- ============ ГЛАВНАЯ ============ -->
 <section id="home" class="page on">
   <div class="balance">
-    <div class="top"><div><small>In-game balance</small><b class="num" id="bal">0.0000<span>HASH</span></b></div><div style="display:flex;gap:6px;align-items:center"><div class="chip" id="lvlchip">—</div><button class="help" id="help" aria-label="Обучение">?</button></div></div>
+    <div class="top"><div><small>Balance</small><b class="num" id="bal">0.0000<span>HASH</span></b></div><div style="display:flex;gap:6px;align-items:center"><div class="chip" id="lvlchip">—</div><button class="help" id="help" aria-label="Обучение">?</button></div></div>
     <div class="row"><button class="pill" id="topopen" style="background:var(--blue);color:#fff">Buy</button><button class="pill" id="rwopen">Rewards</button><button class="pill" id="chkopen" style="flex:.8">Check</button></div>
   </div>
 
@@ -366,7 +366,7 @@ textarea{width:100%;min-height:140px;border:0;outline:none;background:var(--bg2)
       <li><i>1</i><div><b>Арендуйте сервер</b><small>В магазине — выберите любой тариф на 30 дней</small></div></li>
       <li><i>2</i><div><b>Сервер майнит сам</b><small>Круглосуточно, даже когда приложение закрыто</small></div></li>
       <li><i>3</i><div><b>Забирайте раз в сутки</b><small>Хранилище копит монеты сутки — затем нажмите «Забрать», чтобы майнинг продолжился. Бот напомнит</small></div></li>
-      <li><i>4</i><div><b>Weekly rewards</b><small>Active players share a weekly prize fund. Rewards are not guaranteed</small></div></li>
+      <li><i>4</i><div><b>Weekly rewards</b><small>Active players share a weekly prize fund</small></div></li>
     </ol>
     <div style="padding:0 16px 14px"><button class="btn primary" id="act-go" style="height:46px;width:100%">Выбрать сервер</button></div>
   </div>
@@ -377,7 +377,6 @@ textarea{width:100%;min-height:140px;border:0;outline:none;background:var(--bg2)
   </div>
   <p class="footnote" id="upginfo" style="text-align:center;margin-top:12px"></p>
   <div class="legal"><button data-doc="rules">Rules</button>·<button data-doc="privacy">Privacy</button>·<button class="sup-open">Support</button></div>
-  <p class="footnote" style="text-align:center;margin-top:2px;font-size:11px">TonCry is an entertainment game. TON CRY are in-game coins and are not a cryptocurrency.</p>
 </section>
 
 <!-- ============ МОИ СЕРВЕРЫ ============ -->
@@ -566,7 +565,7 @@ textarea{width:100%;min-height:140px;border:0;outline:none;background:var(--bg2)
     <label class="cell field noicon"><span>Сумма</span><input id="top-amount" type="number" step="any" min="0.1" inputmode="decimal" placeholder="0"></label>
   </div>
   <div id="top-quick" style="display:flex;gap:8px;margin-top:10px"></div>
-  <p class="footnote" id="top-note">You get the same amount of TON CRY (in-game coins) on your balance. TON CRY are used only inside the game and cannot be exchanged back to TON.</p>
+  <p class="footnote" id="top-note">You get the same amount of TON CRY. They can’t be exchanged back to TON.</p>
   <button class="btn primary" id="top-pay" style="width:100%;margin-top:16px">Buy TON CRY</button>
 </div>
 
@@ -824,7 +823,7 @@ function openWithdraw() {
   if (!S) return;
   if (!S.withdraw_enabled) return hud('Withdrawals are temporarily unavailable', false);
   $('wd-avail').textContent = `${fmt(S.rewards.balance, 4)} TON`;
-  $('wd-note').textContent = `Only rewards from the weekly prize fund can be withdrawn (TON CRY can’t). Minimum ${S.min_withdraw} TON. Requests are reviewed manually, usually within 24 hours.`;
+  $('wd-note').textContent = `Minimum ${S.min_withdraw} TON. Requests are reviewed manually, usually within 24 hours.`;
   $('wd-amount').placeholder = `from ${S.min_withdraw}`;
   try { $('wd-addr').value = localStorage.getItem('ton_addr') || ''; } catch {}
   wdSheet(true); loadWdHist();
@@ -1009,13 +1008,13 @@ async function loadMissions() {
 const tourSeen = () => { try { return localStorage.getItem('tour_done') === '1'; } catch { return false; } };
 let tourStarted = false;
 const SLIDES = () => [
-  ['fan', 'var(--indigo)', 'Welcome!', 'TonCry is a mining simulator game. Rent virtual servers, collect in-game TON CRY coins and grow your farm. Let’s get you set up in a minute.'],
+  ['fan', 'var(--indigo)', 'Welcome!', 'TonCry is a mining simulator. Rent servers, collect TON CRY and grow your farm. Let’s get you set up in a minute.'],
   ['bag', 'var(--blue)', 'Rent a server', `Pick a plan in the shop. Rentals last ${S?.rent_days || 30} days and your first server is ${Math.round((S?.first_discount || .25) * 100)}% off. Servers are virtual game items.`],
   ['down', 'var(--green)', 'Claim once a day', 'TON CRY pile up in storage for 24 hours. Come back daily and tap “Claim” to keep your servers working. The bot will remind you.'],
   ['gift', 'var(--orange)', 'Weekly rewards', `Every week ${Math.round((S?.rewards?.share || .2) * 100)}% of the game’s revenue goes to a prize fund shared by active players. Rewards are paid in TON, limited and not guaranteed.`],
 ];
 const SPOTS = [
-  ['.balance', 'In-game balance', 'Your TON CRY coins live here. Buy more with TON, open weekly Rewards or send a Check to a friend.'],
+  ['.balance', 'Balance', 'Your TON CRY coins live here. Buy more with TON, open weekly Rewards or send a Check to a friend.'],
   ['.stage', 'Майнинг', 'Вентилятор крутится, пока работают серверы. Кольцо показывает, насколько заполнено хранилище.'],
   ['#claim', 'Забрать', 'Переводит намайненное на баланс и освобождает хранилище.'],
   ['#tabbar [data-p="myservers"]', 'Мои серверы', 'Срок аренды, доход, улучшение и продление каждого сервера.'],
@@ -1147,7 +1146,7 @@ function renderRewards() {
   $('rw-est').textContent = r.eligible ? `≈ ${fmt(r.estimate, 2)} TON` : '—';
   $('rw-est-s').textContent = r.eligible ? `Max ${r.cap} TON per week · changes as others play` : 'Rent at least one server to take part';
   $('rw-bal').textContent = `${fmt(r.balance, 4)} TON`;
-  $('rw-note').textContent = 'Rewards are prizes for game activity from a limited fund — not income, and not guaranteed. TON CRY themselves cannot be withdrawn.';
+  $('rw-note').textContent = 'Prizes from a limited weekly fund — not guaranteed.';
   const hb = $('rw-hist'); hb.innerHTML = '';
   if (!r.history.length) hb.append(el('div', { class: 'empty' }, 'No rewards yet'));
   r.history.forEach(x => hb.append(el('div', { class: 'cell noicon' }, el('div', { class: 'tx' }, el('b', {}, 'Week of ' + new Date(x.created * 1000 - 7 * 864e5).toLocaleDateString('en', { month: 'short', day: 'numeric' }))), el('span', { class: 'val num' }, `+${fmt(x.amount, 4)} TON`))));

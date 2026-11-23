@@ -48,7 +48,7 @@ def _menu_kb():
 async def menu(msg_or_cb, edit=False):
     uid = msg_or_cb.from_user.id
     u = db.get(uid)
-    text = (f"🎁 <b>Checks</b>\n\nSend {settings.coin()} (in-game coins) to friends: create a check and share the link "
+    text = (f"🎁 <b>Checks</b>\n\nSend {settings.coin()} to friends: create a check and share the link "
             f"or send it to any chat.\n\nBalance: <b>{(u or {}).get('balance', 0):.4f} {settings.coin()}</b>")
     if edit and isinstance(msg_or_cb, CallbackQuery):
         try:
@@ -272,7 +272,7 @@ async def share_inline(q: InlineQuery):
     coin, me = settings.coin(), await q.bot.me()
     base = WEBAPP_URL.rstrip("/")
     multi = c["total"] > 1
-    caption = (f"🎁 {'Multi-check' if multi else 'Check'}: 💎 <b>{c['amount']:g} {coin}</b> (in-game coins)"
+    caption = (f"🎁 {'Multi-check' if multi else 'Check'}: 💎 <b>{c['amount']:g} {coin}</b>"
                + (f" each — for {c['total']} people" if multi else "") + "."
                + (f"\n{html.escape(c['description'])}" if c.get("description") else "")
                + (f"\n\n🔒 Subscribe to {html.escape(c['require_chat'])} to activate." if c.get("require_chat") else ""))
