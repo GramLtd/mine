@@ -123,6 +123,11 @@ input,textarea{font:inherit;color:var(--label)}
 #tour .slide.in{opacity:0;transform:translateX(14px);transition:none}
 #tour .art{width:132px;height:132px;border-radius:36px;display:grid;place-items:center;margin-bottom:28px;color:#fff;box-shadow:0 20px 50px -14px currentColor}
 #tour .art svg{width:66px;height:66px;color:#fff}
+#tour .art-fan{position:relative;width:min(62vw,240px);aspect-ratio:1;margin-bottom:34px;animation:fanIn .6s cubic-bezier(.2,.9,.3,1.2)}
+#tour .art-fan .fan{inset:0}
+#tour .art-fan::after{content:"";position:absolute;left:10%;right:10%;bottom:-18%;height:30%;border-radius:50%;
+  background:radial-gradient(closest-side,color-mix(in srgb,#8B4BFF 55%,transparent),transparent);filter:blur(6px);z-index:-1}
+@keyframes fanIn{from{opacity:0;transform:translateY(24px) scale(.9)}to{opacity:1;transform:none}}
 #tour h2{font-size:26px;font-weight:700;letter-spacing:-.02em;margin-bottom:10px}
 #tour p{color:var(--label2);font-size:16px;line-height:1.45;max-width:330px}
 #tour .dots{display:flex;gap:7px;justify-content:center;margin:18px 0}
@@ -1008,7 +1013,7 @@ async function loadMissions() {
 const tourSeen = () => { try { return localStorage.getItem('tour_done') === '1'; } catch { return false; } };
 let tourStarted = false;
 const SLIDES = () => [
-  ['fan', 'var(--indigo)', 'Welcome!', 'TonCry is a mining simulator. Rent servers, collect TON CRY and grow your farm. Let’s get you set up in a minute.'],
+  ['livefan', 'var(--indigo)', 'Welcome to TonCry', 'Build your own mining farm right in Telegram.'],
   ['bag', 'var(--blue)', 'Rent a server', `Pick a plan in the shop. Rentals last ${S?.rent_days || 30} days and your first server is ${Math.round((S?.first_discount || .25) * 100)}% off. Servers are virtual game items.`],
   ['down', 'var(--green)', 'Claim once a day', 'TON CRY pile up in storage for 24 hours. Come back daily and tap “Claim” to keep your servers working. The bot will remind you.'],
   ['gift', 'var(--orange)', 'Weekly rewards', `Every week ${Math.round((S?.rewards?.share || .2) * 100)}% of the game’s revenue goes to a prize fund shared by active players. Rewards are paid in TON, limited and not guaranteed.`],
@@ -1032,7 +1037,15 @@ function startTour() {
 function renderSlide() {
   const sl = SLIDES(), [ic, bg, t, p] = sl[tIdx], box = $('tour-slide');
   box.innerHTML = '';
-  const art = el('div', { class: 'art', style: `background:${bg};color:${bg}` }); art.innerHTML = `<svg><use href="#i-${ic}"/></svg>`;
+  let art;
+  if (ic === 'livefan') {  // живой вентилятор с главного экрана (копия), крутится
+    art = el('div', { class: 'art-fan' });
+    const fan = document.querySelector('.stage .fan').cloneNode(true);
+    fan.classList.remove('off'); fan.style.setProperty('--spin', '2.4s');
+    art.append(fan);
+  } else {
+    art = el('div', { class: 'art', style: `background:${bg};color:${bg}` }); art.innerHTML = `<svg><use href="#i-${ic}"/></svg>`;
+  }
   box.append(art, el('h2', {}, t), el('p', {}, p));
   $('tour-dots').querySelectorAll('i').length !== sl.length && ($('tour-dots').innerHTML = sl.map(() => '<i></i>').join(''));
   $('tour-dots').querySelectorAll('i').forEach((d, i) => d.classList.toggle('on', i === tIdx));
