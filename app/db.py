@@ -300,6 +300,7 @@ def set_setting(key, value):
 def create_withdrawal(uid, amount, address) -> int | None:
     """Атомарно списывает баланс и создаёт заявку. None — не хватает средств или уже есть заявка."""
     with conn() as c:
+        c.execute("BEGIN IMMEDIATE")  # иначе два одновременных запроса создадут две заявки
         if c.execute("SELECT 1 FROM withdrawals WHERE user_id=? AND status='pending'", (uid,)).fetchone():
             return None
         cur = c.execute("UPDATE users SET balance=balance-? WHERE id=? AND balance>=?", (amount, uid, amount))
@@ -604,3 +605,21 @@ def mcheck_cancel(nonce, creator, amount, total):
         c.execute("UPDATE users SET balance=balance+? WHERE id=?", (back, creator))
         c.execute("UPDATE mchecks SET status='cancelled' WHERE nonce=?", (nonce,))
         return "ok", back
+
+
+def daily_take(uid, bonus) -> bool:
+    """Ежедневный бонус одной операцией — повторный запрос в ту же секунду ничего не даст."""
+    now = time.time()
+    with conn() as c:
+        if c.execute("UPDATE users SET last_daily=?, balance=balance+? WHERE id=? AND last_daily<=?",
+                     (now, bonus, uid, now - 86400)).rowcount != 1:
+            return False
+        return True
+
+
+def claim_atomic(uid, amount, now, old_last_claim, old_acc_since) -> bool:
+    with conn() as c:
+        return c.execute(
+            "UPDATE users SET balance=balance+?, last_claim=?, acc=0, acc_since=? "
+            "WHERE id=? AND last_claim=? AND COALESCE(acc_since,0)=?",
+            (amount, now, now, uid, old_last_claim, old_acc_since)).rowcount == 1

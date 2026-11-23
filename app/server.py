@@ -8,7 +8,8 @@ from pathlib import Path
 
 from aiogram.types import LabeledPrice
 from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.exceptions import HTTPException as _HE
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -23,6 +24,38 @@ ADMIN_UI = Path(__file__).resolve().parent / "admin_ui"  # не публикуе
 api = FastAPI()
 
 
+# ---------- ограничение частоты запросов (защита от спама и перегрузки) ----------
+_hits: dict = {}
+LIMITS = [  # (префикс пути, запросов, за секунд)
+    ("/check/", 40, 60),        # картинки чеков — тяжёлые для процессора
+    ("/api/admin", 120, 60),
+    ("/api/", 90, 60),
+]
+
+
+def _client_ip(request) -> str:
+    # за nginx реальный адрес в X-Real-IP (см. deploy/nginx.conf)
+    return request.headers.get("x-real-ip") or (request.client.host if request.client else "?")
+
+
+@api.middleware("http")
+async def rate_limit(request, call_next):
+    path = request.url.path
+    for prefix, n, per in LIMITS:
+        if path.startswith(prefix):
+            now = time.time()
+            key = (_client_ip(request), prefix)
+            q = [t for t in _hits.get(key, ()) if t > now - per]
+            if len(q) >= n:
+                return JSONResponse({"detail": t("Слишком много запросов, подождите немного")}, status_code=429)
+            q.append(now)
+            _hits[key] = q
+            if len(_hits) > 50000:  # не даём словарю разрастись
+                _hits.clear()
+            break
+    return await call_next(request)
+
+
 @api.middleware("http")
 async def lang_mw(request, call_next):
     """Язык интерфейса игрока: заголовок X-Lang (ru/en) от мини-приложения."""
@@ -31,8 +64,6 @@ async def lang_mw(request, call_next):
     return await call_next(request)
 
 
-from fastapi.exceptions import HTTPException as _HE  # noqa: E402
-from fastapi.responses import JSONResponse  # noqa: E402
 
 
 @api.exception_handler(_HE)
@@ -48,7 +79,10 @@ log = logging.getLogger("toncry")
 
 
 def is_admin(tg) -> bool:
-    return tg["id"] in ADMIN_IDS or (tg.get("username") or "").lower() in ADMIN_USERNAMES
+    # username можно сменить, и его займёт другой человек — поэтому, если заданы ADMIN_IDS, верим только им
+    if ADMIN_IDS:
+        return tg["id"] in ADMIN_IDS
+    return (tg.get("username") or "").lower() in ADMIN_USERNAMES
 
 
 def load(tg):
@@ -105,10 +139,8 @@ def missions(tg=Depends(current_user)):
 async def do_mission(mid: str, tg=Depends(current_user)):
     user = load(tg)
     if mid == "daily":
-        if time.time() - user["last_daily"] < 86400:
+        if not db.daily_take(user["id"], DAILY_BONUS):
             raise HTTPException(400, "Уже получено сегодня")
-        db.update(user["id"], last_daily=time.time())
-        db.add_balance(user["id"], DAILY_BONUS)
     elif mid.startswith("m") and mid[1:].isdigit():
         m = db.mission_get(int(mid[1:]))
         if not m or not m["active"]:
@@ -176,7 +208,7 @@ async def withdraw(body: WithdrawIn, tg=Depends(current_user)):
     for aid in ADMIN_IDS:
         try:
             await bot.send_message(aid, f"💸 Заявка #{wid}: {amount:g} {settings.coin()} от "
-                                        f"{user['name']} (<code>{user['id']}</code>)\n<code>{address}</code>")
+                                        f"{html.escape(user['name'] or '')} (<code>{user['id']}</code>)\n<code>{html.escape(address)}</code>")
         except Exception:
             pass
     return {"ok": True, "id": wid, **game.state(load(tg), is_admin(tg))}
@@ -322,10 +354,10 @@ def a_edit(uid: int, body: UserEdit, _=Depends(admin)):
     if body.boost_hours is not None:
         f["boost_until"] = time.time() + body.boost_hours * 3600
         f["boost_mult"] = body.boost_mult or 2
-    if body.add_balance:
-        f["balance"] = max(0.0, f.get("balance", db.get(uid)["balance"]) + body.add_balance)
     if f:
         db.update(uid, **f)
+    if body.add_balance:  # атомарно, чтобы не затереть параллельные изменения баланса
+        db.add_balance(uid, body.add_balance)
     return db.get(uid)
 
 
@@ -341,6 +373,8 @@ async def a_grant(uid: int, body: GrantIn, _=Depends(admin)):
     if not (body.item in SHOP or body.item == "nofee" or body.item.startswith("srv:")):
         raise HTTPException(400, "Нет такого товара")
     if body.item.startswith("srv:"):  # выдача сервера не тратит склад
+        if not body.item[4:].isdigit() or not 0 <= int(body.item[4:]) < len(SERVERS):
+            raise HTTPException(400, "Нет такого сервера")
         game.rebase(db.get(uid))
         db.server_add(uid, int(body.item[4:]), RENT_DAYS)
     else:

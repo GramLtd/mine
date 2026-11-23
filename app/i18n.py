@@ -31,6 +31,7 @@ EN = {
     "Пользователь не найден": "User not found",
     "Аккаунт заблокирован": "Account blocked",
     "Ошибка сети": "Network error",
+    "Слишком много запросов, подождите немного": "Too many requests, please wait a moment",
     # покупки
     "Аренда истекла — сначала продлите сервер": "Rental expired — renew the server first",
     "Комиссия уже отключена": "The fee is already disabled",

@@ -192,7 +192,7 @@ function openUser(u) {
 function closeSheet() { $('scrim').classList.remove('on'); $('sheet').classList.remove('on'); }
 $('scrim').onclick = $('sh-cancel').onclick = closeSheet;
 $('sh-save').onclick = async () => {
-  const body = { balance: +$('e-bal').value, banned: $('e-ban').checked, add_balance: +$('e-add').value || 0 };
+  const body = { ...(+$('e-bal').value !== +fmt(editing.balance, 6) ? { balance: +$('e-bal').value } : {}), banned: $('e-ban').checked, add_balance: +$('e-add').value || 0 };
   if (+$('e-bh').value > 0) { body.boost_hours = +$('e-bh').value; body.boost_mult = +$('e-bm').value || 2; }
   try { await api('/api/admin/users/' + editing.id, 'POST', body); closeSheet(); hud('Сохранено'); loadUsers(); }
   catch (e) { hud(e.message, false); }

@@ -1,4 +1,5 @@
 import asyncio
+import html
 import logging
 import time
 
@@ -48,9 +49,9 @@ async def storage_watcher(bot, interval: int = 60):
                 db.add_balance(r["referrer"], bonus)
                 try:
                     lg = lang_of(r["referrer"])
-                    await bot.send_message(r["referrer"], L(lg, f"🎉 Ваш друг {r['name'] or ''} арендовал сервер — "
+                    await bot.send_message(r["referrer"], L(lg, f"🎉 Ваш друг {html.escape(r['name'] or '')} арендовал сервер — "
                                            f"<b>+{bonus:g} {settings.coin()}</b> на баланс!",
-                                           f"🎉 Your friend {r['name'] or ''} rented a server — "
+                                           f"🎉 Your friend {html.escape(r['name'] or '')} rented a server — "
                                            f"<b>+{bonus:g} {settings.coin()}</b> to your balance!"), reply_markup=kb(lg))
                 except Exception:
                     pass

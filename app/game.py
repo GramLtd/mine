@@ -122,7 +122,10 @@ def settle(user, now=None):
     """«Забрать»: перевести накопленное на баланс и начать новый цикл хранилища."""
     now = now or time.time()
     amount = pending(user, now)
-    db.update(user["id"], balance=user["balance"] + amount, last_claim=now, acc=0.0, acc_since=now)
+    # атомарно и только если с момента чтения никто не успел забрать (иначе параллельные запросы
+    # затирали бы списания и начисляли награду дважды)
+    if not db.claim_atomic(user["id"], amount, now, user["last_claim"], user.get("acc_since") or 0):
+        return 0.0
     return amount
 
 

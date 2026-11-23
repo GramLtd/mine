@@ -70,7 +70,7 @@
     'Срок аренды, доход, улучшение и продление каждого сервера.': 'Rental term, income, upgrades and renewals for each server.',
     'Аренда серверов и скины вентилятора. Начните отсюда!': 'Server rentals and fan skins. Start here!',
     'Показать, где что': 'Show me around', 'Понятно': 'Got it', 'Откройте в Telegram': 'Open in Telegram',
-    'Ежедневный бонус': 'Daily bonus', 'Пополните баланс': 'Top up your balance', 'Причина': 'Reason',
+    'Ежедневный бонус': 'Daily bonus', 'Админ': 'Admin', 'Пополните баланс': 'Top up your balance', 'Причина': 'Reason',
   };
   const pl = (n, one, many) => `${n} ${+n === 1 ? one : many}`;
   const P = [

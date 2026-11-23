@@ -26,15 +26,12 @@ def _ton_logo(d: ImageDraw.ImageDraw, cx, cy, r, fill, line):
 @lru_cache(maxsize=256)
 def render(amount: str, coin: str, rub: str = "", n: int = 1) -> bytes:
     # фон: диагональный градиент
-    img = Image.new("RGB", (W, H))
+    # градиент: картинка 2×2 с цветами углов, растянутая билинейно — в десятки раз быстрее попиксельного цикла
     c1, c2 = (0, 152, 234), (88, 70, 226)
-    px = img.load()
-    for y in range(H):
-        for x in range(0, W, 4):
-            t = (x / W * 0.65 + y / H * 0.35)
-            col = tuple(int(c1[i] + (c2[i] - c1[i]) * t) for i in range(3))
-            for k in range(4):
-                px[x + k, y] = col
+    mix = lambda t: tuple(int(c1[i] + (c2[i] - c1[i]) * t) for i in range(3))
+    small = Image.new("RGB", (2, 2))
+    small.putdata([mix(0), mix(.65), mix(.35), mix(1)])
+    img = small.resize((W, H), Image.BILINEAR)
     # узор из полупрозрачных значков
     pat = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     pd = ImageDraw.Draw(pat)

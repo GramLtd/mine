@@ -16,7 +16,9 @@ router = Router()
 
 
 def is_admin(u) -> bool:
-    return u.id in ADMIN_IDS or (u.username or "").lower() in ADMIN_USERNAMES
+    if ADMIN_IDS:  # см. server.is_admin
+        return u.id in ADMIN_IDS
+    return (u.username or "").lower() in ADMIN_USERNAMES
 
 
 def lang_of(uid, tg_user=None) -> str:
@@ -51,9 +53,9 @@ async def start(msg: Message, command: CommandObject):
         try:
             await msg.bot.send_message(
                 user["referrer"], L(rl,
-                f"👋 {msg.from_user.first_name} присоединился по вашей ссылке! Вы получите "
+                f"👋 {html.escape(msg.from_user.first_name or '')} присоединился по вашей ссылке! Вы получите "
                 f"+{settings.ref_bonus():g} {settings.coin()}, когда он арендует первый сервер.",
-                f"👋 {msg.from_user.first_name} joined via your link! You'll get "
+                f"👋 {html.escape(msg.from_user.first_name or '')} joined via your link! You'll get "
                 f"+{settings.ref_bonus():g} {settings.coin()} when they rent their first server."))
         except Exception:
             pass
