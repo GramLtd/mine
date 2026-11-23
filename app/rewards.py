@@ -8,7 +8,7 @@ import time
 from datetime import datetime, timedelta, timezone
 
 from . import db, settings
-from .config import REWARD_SHARE, REWARD_CAP
+from .config import REWARD_SHARE, REWARD_CAP, ADMIN_IDS
 
 MSK = timezone(timedelta(hours=3))
 
@@ -42,7 +42,7 @@ def add_points(user, amount):
 
 def current(user) -> dict:
     start = week_start()
-    rev = db.revenue_between(start, time.time(), stars_to_ton())
+    rev = db.revenue_between(start, time.time(), stars_to_ton(), ADMIN_IDS)
     fund = rev * share()
     mine, total = db.week_points(week_id(), user["id"])
     est = min(cap(), fund * mine / total) if total > 0 and user.get("bought_server") else 0.0
@@ -58,5 +58,5 @@ def distribute_due():
     wk = week_id(prev_start)
     if db.reward_week_done(wk):
         return []
-    rev = db.revenue_between(prev_start, prev_start + 7 * 86400, stars_to_ton())
+    rev = db.revenue_between(prev_start, prev_start + 7 * 86400, stars_to_ton(), ADMIN_IDS)
     return db.distribute_week(wk, rev, rev * share(), cap())

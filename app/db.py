@@ -128,6 +128,9 @@ def init():
         wcols = {r["name"] for r in c.execute("PRAGMA table_info(withdrawals)")}
         if "reason" not in wcols:
             c.execute("ALTER TABLE withdrawals ADD COLUMN reason TEXT")
+        for tbl in ("ton_orders", "payments"):  # test=1 — тестовый платёж, не идёт в призовой фонд
+            if "test" not in {r["name"] for r in c.execute(f"PRAGMA table_info({tbl})")}:
+                c.execute(f"ALTER TABLE {tbl} ADD COLUMN test INTEGER DEFAULT 0")
         if "source" not in wcols:  # coins — старые заявки (вывод монет), reward — вывод вознаграждений
             c.execute("ALTER TABLE withdrawals ADD COLUMN source TEXT DEFAULT 'coins'")
         if "ref_paid" not in cols:  # бонус за друга — когда он арендует первый сервер; старым не платим повторно
@@ -199,7 +202,8 @@ def add_payment(charge_id, uid, item, stars) -> bool:
     """False, если платёж уже был записан (защита от двойного начисления)."""
     with conn() as c:
         try:
-            c.execute("INSERT INTO payments VALUES(?,?,?,?,?,0)", (charge_id, uid, item, stars, time.time()))
+            c.execute("INSERT INTO payments(charge_id,user_id,item,stars,created,refunded) VALUES(?,?,?,?,?,0)",
+                      (charge_id, uid, item, stars, time.time()))
             return True
         except sqlite3.IntegrityError:
             return False
@@ -268,12 +272,12 @@ def all_payments(limit=100):
     with conn() as c:
         return [dict(r) for r in c.execute("""
             SELECT * FROM (
-              SELECT 'stars' AS method, p.charge_id AS ref, p.user_id, p.item, p.stars AS stars, NULL AS ton, p.created, p.refunded
+              SELECT 'stars' AS method, p.charge_id AS ref, p.user_id, p.item, p.stars AS stars, NULL AS ton, p.created, p.refunded, p.test
                 FROM payments p
               UNION ALL
-              SELECT 'ton', CAST(o.id AS TEXT), o.user_id, o.item, NULL, o.nano/1e9, o.paid, 0 FROM ton_orders o WHERE o.status='paid'
+              SELECT 'ton', CAST(o.id AS TEXT), o.user_id, o.item, NULL, o.nano/1e9, o.paid, 0, o.test FROM ton_orders o WHERE o.status='paid'
               UNION ALL
-              SELECT 'balance', CAST(b.id AS TEXT), b.user_id, b.item, NULL, b.amount, b.created, 0 FROM balance_buys b
+              SELECT 'balance', CAST(b.id AS TEXT), b.user_id, b.item, NULL, b.amount, b.created, 0, 0 FROM balance_buys b
             ) x LEFT JOIN (SELECT id AS uid, name, username FROM users) u ON u.uid = x.user_id
             ORDER BY x.created DESC LIMIT ?""", (limit,))]
 
@@ -654,14 +658,27 @@ def week_points(week, uid):
         return (r["points"] if r else 0.0), tot
 
 
-def revenue_between(start, end, stars_to_ton):
-    """Выручка сервиса за период в TON: платежи TON (пополнения и покупки) + Stars по курсу."""
+def revenue_between(start, end, stars_to_ton, exclude_users=()):
+    """Выручка для призового фонда, TON: реальные платежи TON + Stars по курсу.
+    Не считаются: тестовые платежи (test=1), платежи администраторов, возвращённые Stars.
+    Выдачи и начисления через админку платежей не создают и в выручку не попадают."""
+    ex = tuple(exclude_users) or (-1,)
+    ph = ",".join("?" * len(ex))
     with conn() as c:
-        ton = c.execute("SELECT COALESCE(SUM(nano),0)/1e9 FROM ton_orders WHERE status='paid' AND paid>=? AND paid<?",
-                        (start, end)).fetchone()[0]
-        stars = c.execute("SELECT COALESCE(SUM(stars),0) FROM payments WHERE refunded=0 AND created>=? AND created<?",
-                          (start, end)).fetchone()[0]
+        ton = c.execute(f"SELECT COALESCE(SUM(nano),0)/1e9 FROM ton_orders WHERE status='paid' AND test=0 "
+                        f"AND user_id NOT IN ({ph}) AND paid>=? AND paid<?", (*ex, start, end)).fetchone()[0]
+        stars = c.execute(f"SELECT COALESCE(SUM(stars),0) FROM payments WHERE refunded=0 AND test=0 "
+                          f"AND user_id NOT IN ({ph}) AND created>=? AND created<?", (*ex, start, end)).fetchone()[0]
     return ton + stars * stars_to_ton
+
+
+def payment_set_test(method, ref, test: bool) -> bool:
+    with conn() as c:
+        if method == "ton":
+            return c.execute("UPDATE ton_orders SET test=? WHERE id=?", (int(test), int(ref))).rowcount == 1
+        if method == "stars":
+            return c.execute("UPDATE payments SET test=? WHERE charge_id=?", (int(test), ref)).rowcount == 1
+    return False
 
 
 def reward_week_done(week) -> bool:

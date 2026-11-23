@@ -346,7 +346,7 @@ async def ton_order_check(oid: int, tg=Depends(current_user)):
 def a_stats(_=Depends(admin)):
     from . import rewards
     st = db.stats()
-    rev = db.revenue_between(rewards.week_start(), time.time(), rewards.stars_to_ton())
+    rev = db.revenue_between(rewards.week_start(), time.time(), rewards.stars_to_ton(), ADMIN_IDS)
     return {**st, "week_revenue": rev, "week_fund": rev * rewards.share(), "reward_share": rewards.share()}
 
 
@@ -445,10 +445,25 @@ async def a_broadcast(body: Broadcast, tg=Depends(admin)):
     return {"ok": True, "recipients": len(db.all_ids())}
 
 
+class TestMark(BaseModel):
+    method: str
+    ref: str
+    test: bool
+
+
+@api.post("/api/admin/payments/test")
+def a_payment_test(body: TestMark, _=Depends(admin)):
+    """Пометить платёж тестовым — он не пойдёт в призовой фонд."""
+    if not db.payment_set_test(body.method, body.ref, body.test):
+        raise HTTPException(404, "Платёж не найден")
+    return {"ok": True}
+
+
 @api.get("/api/admin/payments")
 def a_payments(_=Depends(admin)):
     rows = db.all_payments()
     for r in rows:
+        r["admin"] = r["user_id"] in ADMIN_IDS
         try:
             r["title"] = game.item_title(r["item"])
         except Exception:

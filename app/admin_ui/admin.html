@@ -245,9 +245,21 @@ async function loadPays() {
       act = el('button', { class: 'pill', style: p.refunded ? '' : 'color:var(--red)', disabled: p.refunded ? '' : false }, p.refunded ? 'Возвращён' : 'Вернуть');
       act.onclick = () => tg.showConfirm ? tg.showConfirm(`Вернуть ${p.stars} Stars пользователю ${p.name || p.user_id}?`, ok => ok && refund(p)) : refund(p);
     }
-    box.append(el('div', { class: 'cell' }, lead,
+    // реальные платежи (TON и Stars) идут в призовой фонд; тестовые и платежи админов — нет
+    let fund = null;
+    if (p.method !== 'balance') {
+      const excluded = p.test || p.admin || p.refunded;
+      fund = el('button', { class: 'pill', style: `font-size:12px;height:26px;${excluded ? 'color:var(--label3)' : 'color:var(--green)'}`, disabled: p.admin || p.refunded ? '' : false },
+        p.admin ? 'Админ · не в фонде' : p.refunded ? 'Не в фонде' : p.test ? 'Тест · не в фонде' : 'В фонде');
+      if (!p.admin && !p.refunded) fund.onclick = async () => {
+        try { await api('/api/admin/payments/test', 'POST', { method: p.method, ref: p.ref, test: !p.test }); hud(p.test ? 'Платёж снова учитывается в фонде' : 'Помечен тестовым — исключён из фонда'); loadPays(); }
+        catch (e) { hud(e.message, false); }
+      };
+    }
+    box.append(el('div', { class: 'cell', style: 'flex-wrap:wrap' }, lead,
       el('div', { class: 'tx' }, el('b', { class: 'num' }, `${sum} · ${p.title || p.item}`),
-        el('small', {}, `${mt} · ${p.name || p.user_id}${p.username ? ' @' + p.username : ''} · ${ago(p.created)} назад`)), act));
+        el('small', {}, `${mt} · ${p.name || p.user_id}${p.username ? ' @' + p.username : ''} · ${ago(p.created)} назад`)), act,
+      fund ? el('div', { style: 'width:100%;padding-left:44px;margin-top:6px' }, fund) : ''));
   });
 }
 async function refund(p) {
