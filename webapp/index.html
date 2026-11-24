@@ -997,15 +997,23 @@ $('copy').onclick = () => navigator.clipboard.writeText(link).then(() => hud('С
 /* ---------- миссии ---------- */
 async function loadMissions() {
   const r = await api('/api/missions'); const box = $('mlist'); box.innerHTML = '';
+  if (!r.missions.length) box.append(el('div', { class: 'empty' }, 'No tasks right now'));
   r.missions.forEach(m => {
-    const b = el('button', { class: 'pill', disabled: m.done ? '' : false }, m.done ? 'Готово' : 'Получить');
+    // задания со ссылкой — в два шага: «Subscribe» открывает канал, потом «Check» проверяет и выдаёт награду
+    let opened = !m.url;
+    const b = el('button', { class: 'pill', disabled: m.done ? '' : false }, m.done ? 'Done' : m.url ? 'Subscribe' : 'Claim');
     b.onclick = async () => {
-      if (m.url) { m.url.startsWith('https://t.me/') ? tg.openTelegramLink(m.url) : tg.openLink?.(m.url); await new Promise(r => setTimeout(r, 1500)); }
-      try { await api('/api/missions/' + m.id, 'POST'); hud('Награда получена'); loadMissions(); render(await api('/api/state')); }
-      catch (e) { hud(e.message, false); }
+      if (!opened) {
+        m.url.match(/^https:\/\/(t|telegram)\.me\//) ? tg.openTelegramLink(m.url.replace('telegram.me', 't.me')) : tg.openLink?.(m.url);
+        opened = true; b.textContent = 'Check'; return;
+      }
+      b.disabled = true;
+      try { await api('/api/missions/' + m.id, 'POST'); hud(`+${m.reward} ${S?.coin || ''}`); loadMissions(); render(await api('/api/state')); }
+      catch (e) { hud(e.message, false); b.disabled = false; }
     };
-    box.append(el('div', { class: 'cell' }, icon(m.id === 'daily' ? 'gift' : 'paper', m.id === 'daily' ? 'var(--red)' : 'var(--blue)'),
-      el('div', { class: 'tx' }, el('b', {}, m.title), el('small', {}, `+${m.reward} ${S?.coin || ''}`)), b));
+    const ic = m.id === 'daily' ? icon('gift', 'var(--red)') : icon(m.sponsor ? 'star' : 'paper', m.sponsor ? 'var(--orange)' : 'var(--blue)');
+    box.append(el('div', { class: 'cell' }, ic,
+      el('div', { class: 'tx' }, el('b', {}, m.title), el('small', {}, `+${m.reward} ${S?.coin || ''}` + (m.sponsor ? ' · sponsor' : ''))), b));
   });
 }
 

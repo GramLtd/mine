@@ -6,7 +6,7 @@
 """
 from . import settings
 
-REVISION = "2026-11-23"
+REVISION = "2026-11-24"
 
 RULES = """<b>TonCry — Rules of the Service</b>
 <i>Revision of {date}</i>
@@ -98,6 +98,7 @@ We do not sell your data and do not use it for advertising.
 • <b>TON blockchain</b> — if you pay in Toncoin or receive a payout, the transaction (wallet addresses, amount, comment) is public and permanent. Payment comments contain a random code, not your personal data.
 • <b>Wallets via TON Connect</b> (Tonkeeper, Telegram Wallet, etc.) — connection and signing happen in the wallet app under its rules.
 • <b>Technical services</b> — when the app opens, it loads fonts (Google Fonts) and scripts (telegram.org, unpkg.com), which see your IP address as with any website. Our server uses toncenter.com and tonapi.io only for the Service’s own wallet and the TON rate; your data is not sent to them.
+• <b>BotoHub</b> (botohub.me) — when you open the Missions tab, your Telegram user ID is sent to BotoHub to show sponsor tasks and check your subscriptions. No other data is sent.
 • <b>Other players</b> see your first name only if you invited them or they claimed your Check.
 • <b>Authorities</b> — only where required by law.
 

@@ -71,6 +71,8 @@ def init():
         CREATE TABLE IF NOT EXISTS ticket_msgs(id INTEGER PRIMARY KEY AUTOINCREMENT, ticket_id INTEGER, from_admin INTEGER,
             text TEXT, created REAL);
         CREATE TABLE IF NOT EXISTS ticket_links(admin_id INTEGER, msg_id INTEGER, ticket_id INTEGER, PRIMARY KEY(admin_id, msg_id));
+        CREATE TABLE IF NOT EXISTS bh_rewards(user_id INTEGER, resource_id TEXT, amount REAL, created REAL,
+            PRIMARY KEY(user_id, resource_id));
         CREATE TABLE IF NOT EXISTS week_points(week INTEGER, user_id INTEGER, points REAL, PRIMARY KEY(week, user_id));
         CREATE TABLE IF NOT EXISTS rewards(week INTEGER, user_id INTEGER, amount REAL, created REAL, PRIMARY KEY(week, user_id));
         CREATE TABLE IF NOT EXISTS reward_weeks(week INTEGER PRIMARY KEY, revenue REAL, fund REAL, paid REAL, players INTEGER, created REAL);
@@ -805,3 +807,20 @@ def check_set(nonce, creator, **f):
     with conn() as c:
         keys = ", ".join(f"{k}=?" for k in f)
         return c.execute(f"UPDATE mchecks SET {keys} WHERE nonce=? AND creator=?", (*f.values(), nonce, creator)).rowcount == 1
+
+
+# ---------- задания-спонсоры BotoHub ----------
+def bh_rewarded(uid) -> set:
+    with conn() as c:
+        return {r["resource_id"] for r in c.execute("SELECT resource_id FROM bh_rewards WHERE user_id=?", (uid,))}
+
+
+def bh_reward(uid, resource_id, amount) -> bool:
+    """Награда за спонсора — один раз (повторный запрос ничего не начислит)."""
+    with conn() as c:
+        try:
+            c.execute("INSERT INTO bh_rewards VALUES(?,?,?,?)", (uid, resource_id, amount, time.time()))
+        except sqlite3.IntegrityError:
+            return False
+        c.execute("UPDATE users SET balance=balance+? WHERE id=?", (amount, uid))
+        return True

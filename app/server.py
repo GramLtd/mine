@@ -126,10 +126,17 @@ def friends(tg=Depends(current_user)):
 
 
 @api.get("/api/missions")
-def missions(tg=Depends(current_user)):
+async def missions(tg=Depends(current_user)):
+    from . import botohub
     user = load(tg)
     done = db.mission_done_ids(user["id"])
-    return {"missions": [
+    # спонсоры BotoHub: показываем ещё не награждённых (выполненных, но не забранных — тоже, чтобы забрать)
+    got, sponsors = db.bh_rewarded(user["id"]), []
+    for task in await botohub.tasks(user["id"]):
+        if task["resource_id"] not in got:
+            sponsors.append({"id": f"bh:{task['resource_id']}", "title": botohub.title(task["url"]), "reward": botohub.reward(),
+                             "url": task["url"], "done": False, "sponsor": True})
+    return {"missions": [*sponsors,
         {"id": "daily", "title": t("Ежедневный бонус"), "reward": DAILY_BONUS,
          "done": time.time() - user["last_daily"] < 86400},
         *[{"id": f"m{m['id']}", "title": m["title"], "reward": m["reward"], "url": m["url"],
@@ -143,6 +150,16 @@ async def do_mission(mid: str, tg=Depends(current_user)):
     if mid == "daily":
         if not db.daily_take(user["id"], DAILY_BONUS):
             raise HTTPException(400, "Уже получено сегодня")
+    elif mid.startswith("bh:"):
+        from . import botohub
+        rid = mid[3:]
+        task = next((x for x in await botohub.tasks(user["id"]) if x["resource_id"] == rid), None)
+        if not task:
+            raise HTTPException(404, "Задание не найдено")
+        if not task["completed"]:
+            raise HTTPException(400, "Вы не подписаны")
+        if not db.bh_reward(user["id"], rid, botohub.reward()):
+            raise HTTPException(400, "Уже выполнено")
     elif mid.startswith("m") and mid[1:].isdigit():
         m = db.mission_get(int(mid[1:]))
         if not m or not m["active"]:
@@ -607,6 +624,8 @@ class SettingsIn(BaseModel):
     ton_wallet: str | None = None
     star_rub: float | None = None
     nofee_price: float | None = None
+    botohub_enabled: bool | None = None
+    botohub_reward: float | None = None
     maintenance: bool | None = None
     maintenance_text: str | None = None
     reward_share: float | None = None
@@ -654,6 +673,10 @@ def a_set_settings(body: SettingsIn, _=Depends(admin)):
         db.set_setting("star_rub", body.star_rub)
     if body.ref_bonus is not None:
         db.set_setting("ref_bonus", max(0.0, body.ref_bonus))
+    if body.botohub_enabled is not None:
+        db.set_setting("botohub_enabled", "1" if body.botohub_enabled else "0")
+    if body.botohub_reward is not None:
+        db.set_setting("botohub_reward", max(0.0, body.botohub_reward))
     if body.maintenance is not None:
         db.set_setting("maintenance", "1" if body.maintenance else "0")
     if body.maintenance_text is not None:
