@@ -48,6 +48,8 @@
       <label class="cell field noicon"><span>Награда за подписку, TON CRY</span><input id="s-bhr" type="number" step="any" inputmode="decimal"></label>
     </div>
     <p class="footnote" id="s-bh-note"></p>
+    <button class="btn" id="s-bh-test" style="width:100%;margin-top:4px">Проверить BotoHub</button>
+    <pre id="s-bh-out" style="white-space:pre-wrap;word-break:break-all;font-size:12px;color:var(--label2);margin:8px 4px 0" hidden></pre>
     <div class="caption">Техработы</div>
     <div class="group">
       <div class="cell field noicon"><span>Закрыть на техработы</span><label class="sw"><input type="checkbox" id="s-maint"><span></span></label></div>
@@ -433,6 +435,10 @@ async function loadSettings() {
   $('s-coin').value = s.coin_name; $('s-min').value = s.min_withdraw; $('s-wden').checked = s.withdraw_enabled; $('s-welcome').value = s.welcome_text; $('s-welcome-en').value = s.welcome_text_en || ''; $('s-support').value = s.support_username ? '@' + s.support_username : '';
   $('s-tonw').value = s.ton_wallet || ''; $('s-starrub').value = s.star_rub; $('s-nofee').value = s.nofee_price; $('s-maint').checked = !!s.maintenance; $('s-bh').checked = !!s.botohub_enabled; $('s-bhr').value = s.botohub_reward; $('s-bh-note').textContent = s.botohub_token_set ? 'Токен BotoHub задан. Игрок получает награду один раз за каждого спонсора после проверки подписки.' : 'Токен не задан: впишите BOTOHUB_TOKEN=… в /opt/hashfan/.env и перезапустите бота.'; $('s-maint-text').value = s.maintenance_text || ''; $('s-ref').value = s.ref_bonus; $('s-rshare').value = Math.round(s.reward_share * 100); $('s-rcap').value = s.reward_cap; $('s-accr').value = Math.round(s.accrual_speed * 100); $('s-stock').value = (S?.servers || []).map(x => x.daily ?? '').join(', '); $('s-tonrub').value = s.ton_rub; $('s-ton-note').textContent = `Цены в TON = звёзды × цена звезды / курс TON. Сейчас 1 TON ≈ ${s.ton_rub_live.toFixed(2)} ₽ (tonapi.io; запасной курс — если сервис недоступен). Пустой кошелёк — оплата в TON отключена.`;
 }
+$('s-bh-test').onclick = async () => {
+  const out = $('s-bh-out'); out.hidden = false; out.textContent = 'Проверяю…';
+  try { out.textContent = JSON.stringify(await api('/api/admin/botohub_test'), null, 2); } catch (e) { out.textContent = 'Ошибка: ' + e.message; }
+};
 $('s-save').onclick = async () => {
   try {
     await api('/api/admin/settings', 'POST', { coin_name: $('s-coin').value, min_withdraw: +$('s-min').value, withdraw_enabled: $('s-wden').checked, welcome_text: $('s-welcome').value, welcome_text_en: $('s-welcome-en').value, support_username: $('s-support').value, ton_wallet: $('s-tonw').value, star_rub: +$('s-starrub').value, nofee_price: +$('s-nofee').value, maintenance: $('s-maint').checked, botohub_enabled: $('s-bh').checked, botohub_reward: +$('s-bhr').value, maintenance_text: $('s-maint-text').value, ref_bonus: +$('s-ref').value, reward_share: +$('s-rshare').value / 100, reward_cap: +$('s-rcap').value, accrual_speed: +$('s-accr').value / 100, ...($('s-stock').value.trim() ? { stock_daily: $('s-stock').value.split(',').map(x => +x.trim() || 0) } : {}), ton_rub: +$('s-tonrub').value }); loadSettings();

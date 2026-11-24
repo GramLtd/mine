@@ -584,6 +584,12 @@ async def a_wd_action(wid: int, body: WdAction, _=Depends(admin)):
     return {"ok": True}
 
 
+@api.get("/api/admin/botohub_test")
+async def a_botohub_test(tg=Depends(admin)):
+    from . import botohub
+    return await botohub.diagnose(tg["id"])
+
+
 @api.get("/api/admin/reject_templates")
 def a_tpl_list(_=Depends(admin)):
     return {"templates": settings.reject_templates()}

@@ -43,6 +43,23 @@ async def tasks(user_id: int) -> list[dict]:
     return out
 
 
+async def diagnose(user_id: int) -> dict:
+    """Для админки: что именно отвечает BotoHub (без токена в ответе)."""
+    if not TOKEN:
+        return {"ok": False, "problem": "BOTOHUB_TOKEN не задан в /opt/hashfan/.env (или бот не перезапущен после добавления)"}
+    out = {"enabled_in_admin": db.get_setting("botohub_enabled", "1") == "1", "token_length": len(TOKEN)}
+    for only_check in (True, False):
+        try:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as s:
+                async with s.post(API, headers={"Auth": TOKEN, "Content-Type": "application/json"},
+                                  json={"chat_id": user_id, "only_has_check": only_check}) as r:
+                    body = await r.text()
+                    out[f"only_has_check={only_check}"] = {"http": r.status, "body": body[:800]}
+        except Exception as e:
+            out[f"only_has_check={only_check}"] = {"error": f"{type(e).__name__}: {e}"}
+    return out
+
+
 def title(url: str) -> str:
     m = re.search(r"(?:t|telegram)\.me/(?:\+|joinchat/)?([\w\-]+)", url)
     if m and not re.search(r"(?:t|telegram)\.me/(?:\+|joinchat/)", url):
