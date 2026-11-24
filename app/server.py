@@ -57,6 +57,55 @@ async def rate_limit(request, call_next):
 
 
 @api.middleware("http")
+async def security_headers(request, call_next):
+    """Заголовки безопасности для всех ответов."""
+    resp = await call_next(request)
+    h = resp.headers
+    h.setdefault("X-Content-Type-Options", "nosniff")          # браузер не «угадывает» тип файла
+    h.setdefault("Referrer-Policy", "no-referrer")              # адрес приложения не утекает на внешние сайты
+    h.setdefault("Strict-Transport-Security", "max-age=31536000")  # только HTTPS
+    h.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    # встраивать страницу можно только в Telegram (веб-версия открывает мини-приложения во фрейме)
+    h.setdefault("Content-Security-Policy", "frame-ancestors 'self' https://web.telegram.org https://*.telegram.org")
+    if request.url.path.startswith("/api/"):
+        h.setdefault("Cache-Control", "no-store")               # ответы API не кешируются
+    return resp
+
+
+@api.middleware("http")
+async def admin_audit(request, call_next):
+    """Журнал действий админов: каждое успешное изменение через админку (POST /api/admin/...)."""
+    if request.method != "POST" or not request.url.path.startswith("/api/admin/"):
+        return await call_next(request)
+    body = (await request.body())[:400].decode("utf-8", "ignore")
+    resp = await call_next(request)
+    if resp.status_code < 400:
+        try:
+            from .auth import verify_init_data
+            admin_id = verify_init_data(request.headers.get("x-init-data", "")).get("id")
+            db.audit(admin_id, request.url.path.removeprefix("/api/admin/"), body)
+        except Exception:
+            pass
+    return resp
+
+
+_uhits: dict = {}
+
+
+def user_limit(uid: int, key: str, n: int, per: int):
+    """Лимит действий на одного игрока (дополнительно к лимиту по IP): защита от скриптов и спама."""
+    now = time.time()
+    k = (uid, key)
+    q = [x for x in _uhits.get(k, ()) if x > now - per]
+    if len(q) >= n:
+        raise HTTPException(429, "Слишком много запросов, подождите немного")
+    q.append(now)
+    _uhits[k] = q
+    if len(_uhits) > 100000:
+        _uhits.clear()
+
+
+@api.middleware("http")
 async def lang_mw(request, call_next):
     """Язык интерфейса игрока: заголовок X-Lang (ru/en) от мини-приложения."""
     # игрокам — только английский; ответы админки (/api/admin) не переводятся
@@ -113,7 +162,9 @@ def get_state(tg=Depends(current_user)):
 
 @api.post("/api/claim")
 def claim(tg=Depends(current_user)):
-    amount = game.settle(load(tg))
+    user = load(tg)
+    user_limit(user["id"], "claim", 30, 60)
+    amount = game.settle(user)
     return {"claimed": amount, **game.state(load(tg), is_admin(tg))}
 
 
@@ -147,6 +198,7 @@ async def missions(tg=Depends(current_user)):
 @api.post("/api/missions/{mid}")
 async def do_mission(mid: str, tg=Depends(current_user)):
     user = load(tg)
+    user_limit(user["id"], "mission", 30, 60)
     if mid == "daily":
         if not db.daily_take(user["id"], DAILY_BONUS):
             raise HTTPException(400, "Уже получено сегодня")
@@ -228,6 +280,7 @@ def my_withdrawals(tg=Depends(current_user)):
 @api.post("/api/withdraw")
 async def withdraw(body: WithdrawIn, tg=Depends(current_user)):
     user = load(tg)
+    user_limit(user["id"], "withdraw", 5, 3600)
     require_accepted(user)
     if not settings.withdraw_enabled():
         raise HTTPException(400, "Вывод временно недоступен")
@@ -267,6 +320,7 @@ def _checked(user, item):
 def buy_balance(body: InvoiceIn, tg=Depends(current_user)):
     """Оплата с баланса."""
     user = load(tg)
+    user_limit(user["id"], "buy", 20, 60)
     require_accepted(user)
     if body.item == "topup":
         raise HTTPException(400, "Нет такого товара")
@@ -284,6 +338,7 @@ def buy_balance(body: InvoiceIn, tg=Depends(current_user)):
 @api.post("/api/stars/invoice")
 async def stars_invoice(body: InvoiceIn, tg=Depends(current_user)):
     user = load(tg)
+    user_limit(user["id"], "invoice", 15, 60)
     require_accepted(user)
     if body.item == "topup":
         raise HTTPException(400, "Пополнение — только в TON")
@@ -322,6 +377,7 @@ async def ton_paid(order):
 @api.post("/api/ton/order")
 def ton_order(body: InvoiceIn, tg=Depends(current_user)):
     user = load(tg)
+    user_limit(user["id"], "order", 15, 60)
     require_accepted(user)
     if not settings.ton_enabled():
         raise HTTPException(400, "Оплата в TON временно недоступна")
@@ -584,6 +640,11 @@ async def a_wd_action(wid: int, body: WdAction, _=Depends(admin)):
     return {"ok": True}
 
 
+@api.get("/api/admin/audit")
+def a_audit(_=Depends(admin)):
+    return {"log": db.audit_list(100)}
+
+
 @api.get("/api/admin/botohub_test")
 async def a_botohub_test(tg=Depends(admin)):
     from . import botohub
@@ -823,6 +884,7 @@ async def send_support(body: SupportIn, tg=Depends(current_user)):
     from . import support
     user = load(tg, allow_banned=True, allow_maintenance=True)
     text = body.text.strip()
+    user_limit(user["id"], "support", 10, 600)
     if not 1 <= len(text) <= 2000:
         raise HTTPException(400, "Пустое сообщение")
     await support.from_user(bot, user, text)

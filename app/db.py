@@ -86,6 +86,8 @@ def init():
         CREATE TABLE IF NOT EXISTS bh_rewards(user_id INTEGER, resource_id TEXT, amount REAL, created REAL,
             PRIMARY KEY(user_id, resource_id));
         CREATE TABLE IF NOT EXISTS promo_sent(user_id INTEGER, campaign TEXT, sent REAL, PRIMARY KEY(user_id, campaign));
+        CREATE TABLE IF NOT EXISTS admin_log(id INTEGER PRIMARY KEY AUTOINCREMENT, admin_id INTEGER, action TEXT,
+            details TEXT, created REAL);
         CREATE TABLE IF NOT EXISTS week_points(week INTEGER, user_id INTEGER, points REAL, PRIMARY KEY(week, user_id));
         CREATE TABLE IF NOT EXISTS rewards(week INTEGER, user_id INTEGER, amount REAL, created REAL, PRIMARY KEY(week, user_id));
         CREATE TABLE IF NOT EXISTS reward_weeks(week INTEGER PRIMARY KEY, revenue REAL, fund REAL, paid REAL, players INTEGER, created REAL);
@@ -879,3 +881,16 @@ def promo_mark(uid, campaign) -> bool:
 def promo_count(campaign) -> int:
     with conn() as c:
         return c.execute("SELECT COUNT(*) FROM promo_sent WHERE campaign=?", (campaign,)).fetchone()[0]
+
+
+# ---------- журнал действий админов ----------
+def audit(admin_id, action, details=""):
+    with conn() as c:
+        c.execute("INSERT INTO admin_log(admin_id,action,details,created) VALUES(?,?,?,?)",
+                  (admin_id, action, str(details)[:500], time.time()))
+
+
+def audit_list(limit=100):
+    with conn() as c:
+        return [dict(r) for r in c.execute(
+            "SELECT l.*, u.name, u.username FROM admin_log l LEFT JOIN users u ON u.id=l.admin_id ORDER BY l.id DESC LIMIT ?", (limit,))]

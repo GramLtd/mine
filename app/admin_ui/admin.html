@@ -12,6 +12,8 @@
 
   <div id="a-overview" class="apane">
     <div class="grid" id="stats"></div>
+    <div class="caption" style="margin-top:20px">Журнал действий админов</div>
+    <div class="group" id="auditlist"></div>
   </div>
 
   <div id="a-users" class="apane" hidden>
@@ -181,7 +183,15 @@ document.querySelectorAll('#aseg button').forEach(b => b.onclick = () => {
 });
 function loadAdmin() { ({ overview: loadStats, users: loadUsers, wd: loadWd, pays: loadPays, sup: loadTickets, set: loadSettings })[pane]().catch(e => hud(e.message, false)); }
 
+async function loadAudit() {
+  const { log } = await api('/api/admin/audit'); const box = $('auditlist'); box.innerHTML = '';
+  if (!log.length) box.append(el('div', { class: 'empty' }, 'Пока пусто'));
+  log.slice(0, 30).forEach(l => box.append(el('div', { class: 'cell noicon' }, el('div', { class: 'tx' },
+    el('b', { style: 'font-size:14px' }, l.action), el('small', { style: 'white-space:normal;word-break:break-all' }, (l.details || '').slice(0, 160))),
+    el('span', { class: 'val', style: 'font-size:12px;text-align:right' }, `${l.name || l.admin_id}\n${ago(l.created)}`))));
+}
 async function loadStats() {
+  loadAudit().catch(() => {});
   const s = await api('/api/admin/stats');
   const tiles = [
     ['people', 'Игроки', s.users.toLocaleString('ru'), `+${s.new_24h} за сутки`],

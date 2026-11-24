@@ -12,6 +12,8 @@ from app.config import BOT_TOKEN, PORT, WEBAPP_URL
 
 
 async def main():
+    from app.security import setup_logging, AntiFlood
+    setup_logging()  # токены не попадут в журналы
     db.init()
     bot = Bot(BOT_TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
     server.bot = bot
@@ -21,6 +23,9 @@ async def main():
     await bot.set_chat_menu_button(menu_button=MenuButtonWebApp(
         text="Play", web_app=WebAppInfo(url=WEBAPP_URL)))
     dp = Dispatcher()
+    flood = AntiFlood()  # защита от флуда: слишком частые сообщения/нажатия игнорируются
+    for obs in (dp.message, dp.callback_query):  # inline-запросы не трогаем: Telegram шлёт их на каждый символ
+        obs.outer_middleware(flood)
     dp.include_router(checks_router)  # раньше основного: ввод суммы чека не должен уходить в поддержку
     dp.include_router(router)
     # IP игроков не пишем в журнал (включить для отладки: ACCESS_LOG=1)
