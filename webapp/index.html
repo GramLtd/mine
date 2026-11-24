@@ -869,6 +869,7 @@ function renderShop(s) {
   s.servers.forEach(sv => {
     const out = sv.stock <= 0;
     const tx = el('div', { class: 'tx' }, el('b', {}, sv.spec),
+      el('small', { style: 'display:block;color:var(--green)' }, `≈ ${fmt(sv.daily_income * (1 - s.fee), sv.daily_income < 1 ? 2 : 1)} ${s.coin}/day`),
       el('small', { style: 'display:block' }, `${sv.hashrate.toLocaleString(window.LANG === 'en' ? 'en' : 'ru')} GH/s · `,
         el('span', { style: out ? 'color:var(--red)' : sv.stock < 10 ? 'color:var(--orange)' : '' }, out ? 'нет в наличии' : `осталось ${sv.stock} шт`)));
     tx.firstChild.style.whiteSpace = 'normal';
