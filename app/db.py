@@ -1,7 +1,19 @@
+import re
 import sqlite3
 import time
 from contextlib import contextmanager
 from .config import DB_PATH
+
+
+_COL = re.compile(r"^[a-z_][a-z0-9_]{0,40}$")
+
+
+def _safe_cols(fields):
+    """Защита от SQL-инъекций в названиях колонок: в UPDATE ... SET подставляются только простые имена.
+    Значения всегда идут параметрами (?), но и имена полей проверяем на случай будущих ошибок."""
+    for k in fields:
+        if not _COL.match(k):
+            raise ValueError(f"bad column name: {k!r}")
 
 
 @contextmanager
@@ -178,6 +190,7 @@ def get_or_create(uid: int, name: str = "", referrer: int | None = None, usernam
 def update(uid: int, **fields):
     keys = ", ".join(f"{k}=?" for k in fields)
     with conn() as c:
+        _safe_cols(fields)
         c.execute(f"UPDATE users SET {keys} WHERE id=?", (*fields.values(), uid))
 
 
@@ -472,6 +485,7 @@ def server_add(uid, tier, days):
 
 def server_update(sid, **f):
     with conn() as c:
+        _safe_cols(f)
         c.execute(f"UPDATE servers SET {', '.join(k + '=?' for k in f)} WHERE id=?", (*f.values(), sid))
 
 
@@ -807,6 +821,7 @@ def checks_of(uid, limit=10):
 def check_set(nonce, creator, **f):
     with conn() as c:
         keys = ", ".join(f"{k}=?" for k in f)
+        _safe_cols(f)
         return c.execute(f"UPDATE mchecks SET {keys} WHERE nonce=? AND creator=?", (*f.values(), nonce, creator)).rowcount == 1
 
 
