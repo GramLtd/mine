@@ -326,11 +326,44 @@ async def activate(bot, user_tg, nonce):
     return True, f"+{c['amount']:g} {coin} added to your balance!", c
 
 
+# ---------- после активации — в чат с ботом: «сколько получили» + кнопка открыть приложение ----------
+async def got_url(bot, nonce) -> str:
+    """Ссылка t.me/бот?start=got_<id>: Telegram откроет чат с ботом сразу после нажатия «Claim»."""
+    me = await bot.me()
+    return f"https://t.me/{me.username}?start=got_{nonce}"
+
+
+def _open_app_kb():
+    from aiogram.types import WebAppInfo
+    return _kb([[InlineKeyboardButton(text="🚀 Open TonCry", web_app=WebAppInfo(url=WEBAPP_URL))]])
+
+
+async def got_message(msg: Message, nonce: str):
+    """Сообщение после активации чека — только если этот человек действительно его активировал."""
+    coin, uid = settings.coin(), msg.from_user.id
+    amount = None
+    with db.conn() as c:
+        r = c.execute("SELECT m.amount FROM mchecks m JOIN mcheck_claims x ON x.nonce=m.nonce WHERE m.nonce=? AND x.user_id=?",
+                      (nonce, uid)).fetchone()
+        if r:
+            amount = r["amount"]
+        else:
+            r = c.execute("SELECT amount FROM checks WHERE nonce=? AND claimer=? AND status='claimed'", (nonce, uid)).fetchone()
+            amount = r["amount"] if r else None
+    if amount is None:
+        return await msg.answer("Open TonCry to see your balance.", reply_markup=_open_app_kb())
+    await msg.answer(f"🎉 <b>You activated a check!</b>\n\n<b>+{amount:g} {coin}</b> added to your balance.",
+                     reply_markup=_open_app_kb())
+
+
 @router.callback_query(F.data.regexp(r"^k:[0-9a-f]{16}$"))
 async def claim_cb(cb: CallbackQuery):
     nonce = cb.data[2:]
     ok, text, c = await activate(cb.bot, cb.from_user, nonce)
-    await cb.answer(text, show_alert=True)
+    if ok:  # открываем чат с ботом, там сообщение с суммой и кнопкой
+        await cb.answer(url=await got_url(cb.bot, nonce))
+    else:
+        await cb.answer(text, show_alert=True)
     if c:
         me = await cb.bot.me()
         done = c["status"] != "active"
@@ -343,18 +376,13 @@ async def claim_cb(cb: CallbackQuery):
                 await cb.message.edit_reply_markup(reply_markup=None)
         except Exception:
             pass
-    if ok:
-        try:
-            await cb.bot.send_message(cb.from_user.id, f"💎 You activated a check: <b>{text.split(' added')[0]}</b>.")
-        except Exception:
-            pass
 
 
 async def start_activate(msg: Message, nonce: str):
     """t.me/бот?start=c_<id> — активация по ссылке (в личке можно показать кнопку подписки)."""
     ok, text, c = await activate(msg.bot, msg.from_user, nonce)
     if ok:
-        return await msg.answer(f"💎 {text}")
+        return await got_message(msg, nonce)
     if c and c.get("require_chat") and "Subscribe" in text:
         return await msg.answer(f"🔒 {html.escape(text)}", reply_markup=_kb([
             [_btn(f"Subscribe to {c['require_chat']}", url=f"https://t.me/{c['require_chat'].lstrip('@')}")],

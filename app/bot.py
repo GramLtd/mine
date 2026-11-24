@@ -65,6 +65,9 @@ async def start(msg: Message, command: CommandObject):
     if command.args == "checks":
         from . import checks
         return await checks.menu(msg)
+    if command.args and re.fullmatch(r"got_(m?[0-9a-f]{11,16})", command.args):
+        from . import checks
+        return await checks.got_message(msg, command.args[4:])
     if command.args and re.fullmatch(r"c_[0-9a-f]{16}", command.args):
         from . import checks
         return await checks.start_activate(msg, command.args[2:])
@@ -327,17 +330,14 @@ async def claim_check(cb: CallbackQuery):
     res = db.check_claim(cid, creator, amount, cb.from_user.id)
     if res == "ok":
         name = html.escape(cb.from_user.first_name or "")
-        await cb.answer(L(lu, f"+{amount:g} {coin} на баланс!", f"+{amount:g} {coin} added to your balance!"), show_alert=True)
+        from . import checks
+        await cb.answer(url=await checks.got_url(cb.bot, cid))  # откроется чат с ботом: сумма + кнопка в приложение
         try:
             await edit(L(lc, f"✅ Получено: {amount:g} {coin}", f"✅ Received: {amount:g} {coin}"))
         except Exception:
             pass
         try:
             await cb.bot.send_message(creator, L(lc, f"✅ {name} получил ваш чек на {amount:g} {coin}.", f"✅ {name} claimed your check for {amount:g} {coin}."))
-        except Exception:
-            pass
-        try:
-            await cb.bot.send_message(cb.from_user.id, L(lu, f"💎 Вы получили чек на <b>{amount:g} {coin}</b>!", f"💎 You received a check for <b>{amount:g} {coin}</b>!"), reply_markup=kb(lu))
         except Exception:
             pass
     else:
@@ -384,14 +384,10 @@ async def claim_mcheck(cb: CallbackQuery):
         return await cb.answer(L(lu, "Аккаунт заблокирован", "Account blocked"), show_alert=True)
     st, n = db.mcheck_claim(cid, creator, amount, total, cb.from_user.id)
     if st == "ok":
-        await cb.answer(L(lu, f"+{amount:g} {coin} на баланс!", f"+{amount:g} {coin} added to your balance!"), show_alert=True)
+        from . import checks
+        await cb.answer(url=await checks.got_url(cb.bot, cid))
         await set_kb(_done_kb(L(lc, f"✅ Все {total} активаций получены", f"✅ All {total} claimed"), me.username) if n >= total
                      else _mcheck_kb(cid, creator, amount, total, n, lc))
-        try:
-            await cb.bot.send_message(cb.from_user.id, L(lu, f"💎 Вы получили <b>{amount:g} {coin}</b> из мультичека!",
-                                                         f"💎 You received <b>{amount:g} {coin}</b> from a multi-check!"), reply_markup=kb(lu))
-        except Exception:
-            pass
         if n >= total:
             try:
                 await cb.bot.send_message(creator, L(lc, f"✅ Ваш мультичек {amount:g} {coin} × {total} полностью получен.",
