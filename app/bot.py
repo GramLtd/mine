@@ -184,6 +184,17 @@ async def deletedata_yes(cb: CallbackQuery):
         pass
 
 
+@router.callback_query(F.data == "promo:off")
+async def promo_off(cb: CallbackQuery):
+    if db.get(cb.from_user.id):
+        db.update(cb.from_user.id, no_promo=1)
+    await cb.answer("Reminders turned off. You’ll still get important notifications.", show_alert=True)
+    try:
+        await cb.message.edit_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+
+
 @router.message(Command("paysupport"))
 async def paysupport(msg: Message):
     await msg.answer("💳 <b>Payment support</b>\n\nDescribe your payment issue in one message right here — it goes to the support team. "

@@ -56,6 +56,9 @@ async def storage_watcher(bot, interval: int = 60):
                 except Exception:
                     pass
                 await asyncio.sleep(0.05)
+            # автосообщения (напоминания)
+            from . import promo
+            await promo.tick(bot)
             # итоги недели программы вознаграждений
             from . import rewards
             for uid, amt in rewards.distribute_due():

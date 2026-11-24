@@ -100,6 +100,10 @@
     <button class="btn tinted" id="m-add" style="width:100%;margin-top:10px">Добавить задание</button>
     <p class="footnote">Продавайте размещение каналам: они платят вам, игроки получают монеты за подписку. Для проверки подписки бот должен быть админом канала.</p>
 
+    <div class="caption" style="margin-top:30px">Авторассылки (напоминания)</div>
+    <div id="promolist"></div>
+    <p class="footnote">Каждое напоминание приходит игроку один раз, не чаще одного автосообщения в сутки и только 10:00–22:00 МСК. Под сообщением есть кнопка «Stop reminders». Тексты — по-английски, без обещаний дохода.</p>
+
     <div class="caption" style="margin-top:30px">Рассылка всем игрокам</div>
     <textarea id="bctext" placeholder="Текст рассылки. Поддерживается HTML: <b>, <i>, <a href>"></textarea>
     <div class="caption">Кнопки под сообщением</div>
@@ -429,7 +433,30 @@ $('m-add').onclick = async () => {
     ['m-title', 'm-url', 'm-chat', 'm-reward'].forEach(i => $(i).value = ''); hud('Задание добавлено'); loadMs();
   } catch (e) { hud(e.message, false); }
 };
+async function loadPromo() {
+  const { campaigns } = await api('/api/admin/promo'); const box = $('promolist'); box.innerHTML = '';
+  campaigns.forEach(c => {
+    const sw = el('label', { class: 'sw' }); const on = el('input', { type: 'checkbox' }); on.checked = c.enabled; sw.append(on, el('span'));
+    const delay = el('input', { type: 'number', step: '1', inputmode: 'numeric', value: c.delay_h });
+    const btn = el('input', { value: c.button, maxlength: 64 });
+    const text = el('textarea', { style: 'min-height:90px' }); text.value = c.text;
+    const st = 'border:0;background:none;outline:none;text-align:right;font-size:16px;color:var(--label2);width:45%';
+    delay.setAttribute('style', st); btn.setAttribute('style', st);
+    const save = el('button', { class: 'pill' }, 'Сохранить'), test = el('button', { class: 'pill' }, 'Тест себе');
+    const send = async t => {
+      try { await api('/api/admin/promo/' + c.key, 'POST', { enabled: on.checked, delay_h: +delay.value, text: text.value, button: btn.value, test: t }); hud(t ? 'Отправлено вам' : 'Сохранено'); loadPromo(); }
+      catch (e) { hud(e.message, false); }
+    };
+    save.onclick = () => send(false); test.onclick = () => send(true);
+    box.append(el('div', { class: 'group', style: 'margin-top:10px' },
+      el('div', { class: 'cell field noicon' }, el('div', { class: 'tx' }, el('b', {}, c.title), el('small', {}, `Отправлено: ${c.sent}`)), sw),
+      el('label', { class: 'cell field noicon' }, el('span', {}, 'Задержка, часов'), delay),
+      el('label', { class: 'cell field noicon' }, el('span', {}, 'Текст кнопки'), btn)),
+      text, el('div', { style: 'display:flex;gap:8px;justify-content:flex-end;margin:8px 0 4px' }, test, save));
+  });
+}
 async function loadSettings() {
+  loadPromo().catch(e => hud(e.message, false));
   loadMs();
   const s = await api('/api/admin/settings');
   $('s-coin').value = s.coin_name; $('s-min').value = s.min_withdraw; $('s-wden').checked = s.withdraw_enabled; $('s-welcome').value = s.welcome_text; $('s-welcome-en').value = s.welcome_text_en || ''; $('s-support').value = s.support_username ? '@' + s.support_username : '';

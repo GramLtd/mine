@@ -73,6 +73,7 @@ def init():
         CREATE TABLE IF NOT EXISTS ticket_links(admin_id INTEGER, msg_id INTEGER, ticket_id INTEGER, PRIMARY KEY(admin_id, msg_id));
         CREATE TABLE IF NOT EXISTS bh_rewards(user_id INTEGER, resource_id TEXT, amount REAL, created REAL,
             PRIMARY KEY(user_id, resource_id));
+        CREATE TABLE IF NOT EXISTS promo_sent(user_id INTEGER, campaign TEXT, sent REAL, PRIMARY KEY(user_id, campaign));
         CREATE TABLE IF NOT EXISTS week_points(week INTEGER, user_id INTEGER, points REAL, PRIMARY KEY(week, user_id));
         CREATE TABLE IF NOT EXISTS rewards(week INTEGER, user_id INTEGER, amount REAL, created REAL, PRIMARY KEY(week, user_id));
         CREATE TABLE IF NOT EXISTS reward_weeks(week INTEGER PRIMARY KEY, revenue REAL, fund REAL, paid REAL, players INTEGER, created REAL);
@@ -124,7 +125,7 @@ def init():
                 c.execute(f"ALTER TABLE users ADD COLUMN {col} {ddl}")
         if "activated" not in cols:
             c.execute("ALTER TABLE users ADD COLUMN activated INTEGER DEFAULT 1")
-        for col, ddl in [("no_fee", "INTEGER DEFAULT 0"), ("bought_server", "INTEGER DEFAULT 0"), ("tutorial_done", "INTEGER DEFAULT 0"), ("acc", "REAL DEFAULT 0"), ("acc_since", "REAL DEFAULT 0"), ("lang", "TEXT DEFAULT ''"), ("reward_balance", "REAL DEFAULT 0"), ("acc_exp", "REAL DEFAULT 0"), ("accepted_at", "REAL DEFAULT 0"), ("accepted_rev", "TEXT DEFAULT ''")]:
+        for col, ddl in [("no_fee", "INTEGER DEFAULT 0"), ("bought_server", "INTEGER DEFAULT 0"), ("tutorial_done", "INTEGER DEFAULT 0"), ("acc", "REAL DEFAULT 0"), ("acc_since", "REAL DEFAULT 0"), ("lang", "TEXT DEFAULT ''"), ("reward_balance", "REAL DEFAULT 0"), ("acc_exp", "REAL DEFAULT 0"), ("accepted_at", "REAL DEFAULT 0"), ("accepted_rev", "TEXT DEFAULT ''"), ("no_promo", "INTEGER DEFAULT 0")]:
             if col not in cols:
                 c.execute(f"ALTER TABLE users ADD COLUMN {col} {ddl}")
         wcols = {r["name"] for r in c.execute("PRAGMA table_info(withdrawals)")}
@@ -824,3 +825,42 @@ def bh_reward(uid, resource_id, amount) -> bool:
             return False
         c.execute("UPDATE users SET balance=balance+? WHERE id=?", (amount, uid))
         return True
+
+
+# ---------- автосообщения ----------
+_PROMO_BASE = ("u.banned=0 AND u.no_promo=0 "
+               "AND NOT EXISTS(SELECT 1 FROM promo_sent p WHERE p.user_id=u.id AND p.campaign=?) "
+               "AND NOT EXISTS(SELECT 1 FROM promo_sent p WHERE p.user_id=u.id AND p.sent>?)")  # не чаще раза в сутки
+
+
+def promo_no_server(campaign, created_before, last_promo_after):
+    with conn() as c:
+        return [r["id"] for r in c.execute(
+            f"SELECT u.id FROM users u WHERE {_PROMO_BASE} AND u.bought_server=0 AND u.created<=? LIMIT 200",
+            (campaign, last_promo_after, created_before))]
+
+
+def promo_cheap_only(campaign, bought_before, last_promo_after, max_cheap_tier):
+    """Есть активные серверы, все — дешёвые, и первый куплен давно."""
+    now = time.time()
+    with conn() as c:
+        return [r["id"] for r in c.execute(
+            f"SELECT u.id FROM users u WHERE {_PROMO_BASE} AND u.bought_server=1 "
+            "AND EXISTS(SELECT 1 FROM servers s WHERE s.user_id=u.id AND s.expires>?) "
+            "AND NOT EXISTS(SELECT 1 FROM servers s WHERE s.user_id=u.id AND s.expires>? AND s.tier>?) "
+            "AND (SELECT MIN(created) FROM servers s WHERE s.user_id=u.id)<=? LIMIT 200",
+            (campaign, last_promo_after, now, now, max_cheap_tier, bought_before))]
+
+
+def promo_mark(uid, campaign) -> bool:
+    with conn() as c:
+        try:
+            c.execute("INSERT INTO promo_sent VALUES(?,?,?)", (uid, campaign, time.time()))
+            return True
+        except sqlite3.IntegrityError:
+            return False
+
+
+def promo_count(campaign) -> int:
+    with conn() as c:
+        return c.execute("SELECT COUNT(*) FROM promo_sent WHERE campaign=?", (campaign,)).fetchone()[0]

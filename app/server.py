@@ -590,6 +590,42 @@ async def a_botohub_test(tg=Depends(admin)):
     return await botohub.diagnose(tg["id"])
 
 
+@api.get("/api/admin/promo")
+def a_promo(_=Depends(admin)):
+    from . import promo
+    return {"campaigns": promo.all_cfg()}
+
+
+class PromoIn(BaseModel):
+    enabled: bool | None = None
+    delay_h: float | None = None
+    text: str | None = None
+    button: str | None = None
+    test: bool = False
+
+
+@api.post("/api/admin/promo/{key}")
+async def a_promo_save(key: str, body: PromoIn, tg=Depends(admin)):
+    from . import promo
+    if key not in promo.CAMPAIGNS:
+        raise HTTPException(404)
+    f = {k: v for k, v in body.model_dump().items() if v is not None and k != "test"}
+    if "delay_h" in f:
+        f["delay_h"] = max(1.0, min(24 * 30, f["delay_h"]))
+    if "text" in f and not f["text"].strip():
+        raise HTTPException(400, "Пустой текст")
+    if "button" in f:
+        f["button"] = f["button"].strip()[:64] or promo.CAMPAIGNS[key][3]
+    promo.save(key, **f)
+    c = promo.cfg(key)
+    if body.test:
+        try:
+            await bot.send_message(tg["id"], c["text"], reply_markup=promo.markup(c))
+        except Exception as e:
+            raise HTTPException(400, f"Telegram не принял сообщение: {e}")
+    return {"campaigns": promo.all_cfg()}
+
+
 @api.get("/api/admin/reject_templates")
 def a_tpl_list(_=Depends(admin)):
     return {"templates": settings.reject_templates()}
