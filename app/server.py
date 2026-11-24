@@ -418,15 +418,52 @@ async def a_grant(uid: int, body: GrantIn, _=Depends(admin)):
     return u
 
 
+class BcButton(BaseModel):
+    text: str
+    kind: str = "app"        # app | shop | myservers | friends | missions | rewards | url
+    url: str | None = None
+    same_row: bool = False   # в один ряд с предыдущей кнопкой
+
+
 class Broadcast(BaseModel):
     text: str
+    buttons: list[BcButton] = []
+    test: bool = False       # отправить только себе — проверить, как выглядит
 
 
-async def _broadcast(text: str, admin_id: int):
+APP_PAGES = {"app": "", "shop": "shop", "myservers": "myservers", "friends": "friends", "missions": "missions", "rewards": "rewards"}
+
+
+def _bc_markup(buttons):
+    """Кнопки рассылки: открыть приложение (в т. ч. сразу нужный раздел) или внешняя ссылка."""
+    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
+    rows = []
+    for b in buttons[:12]:
+        text = b.text.strip()[:64]
+        if not text:
+            raise HTTPException(400, "У кнопки нет текста")
+        if b.kind == "url":
+            url = (b.url or "").strip()
+            if not url.startswith(("https://", "http://", "tg://")):
+                raise HTTPException(400, f"Кнопка «{text}»: ссылка должна начинаться с https://")
+            btn = InlineKeyboardButton(text=text, url=url)
+        elif b.kind in APP_PAGES:
+            page = APP_PAGES[b.kind]
+            btn = InlineKeyboardButton(text=text, web_app=WebAppInfo(url=WEBAPP_URL.rstrip("/") + "/" + (f"?p={page}" if page else "")))
+        else:
+            raise HTTPException(400, "Неизвестный тип кнопки")
+        if b.same_row and rows and len(rows[-1]) < 4:
+            rows[-1].append(btn)
+        else:
+            rows.append([btn])
+    return InlineKeyboardMarkup(inline_keyboard=rows) if rows else None
+
+
+async def _broadcast(text: str, admin_id: int, markup=None):
     ok = fail = 0
     for uid in db.all_ids():
         try:
-            await bot.send_message(uid, text)
+            await bot.send_message(uid, text, reply_markup=markup)
             ok += 1
         except Exception:
             fail += 1
@@ -441,7 +478,14 @@ async def _broadcast(text: str, admin_id: int):
 async def a_broadcast(body: Broadcast, tg=Depends(admin)):
     if not body.text.strip():
         raise HTTPException(400, "Пустое сообщение")
-    asyncio.create_task(_broadcast(body.text, tg["id"]))
+    markup = _bc_markup(body.buttons)
+    if body.test:  # только себе: сразу видно ошибки разметки
+        try:
+            await bot.send_message(tg["id"], body.text, reply_markup=markup)
+        except Exception as e:
+            raise HTTPException(400, f"Telegram не принял сообщение: {e}")
+        return {"ok": True, "recipients": 1}
+    asyncio.create_task(_broadcast(body.text, tg["id"], markup))
     return {"ok": True, "recipients": len(db.all_ids())}
 
 

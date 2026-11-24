@@ -1206,7 +1206,11 @@ async function loadAdminUI() {
   } catch { adminLoaded = false; }
 }
 
-api('/api/state').then(render).catch(e => { $('minedv').textContent = e.message === 'Ошибка сети' ? 'Откройте в Telegram' : e.message; $('mined').style.fontSize = '20px'; });
+const START_PAGE = new URLSearchParams(location.search).get('p');  // кнопка из рассылки: ?p=shop и т. п.
+api('/api/state').then(s => {
+  render(s);
+  if (START_PAGE && s.accepted) setTimeout(() => START_PAGE === 'rewards' ? $('rwopen').click() : go(START_PAGE), 300);
+}).catch(e => { $('minedv').textContent = e.message === 'Ошибка сети' ? 'Откройте в Telegram' : e.message; $('mined').style.fontSize = '20px'; });
 setInterval(() => api('/api/state').then(render).catch(() => {}), 30000);
 tick();
 </script>

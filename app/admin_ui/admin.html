@@ -94,7 +94,13 @@
 
     <div class="caption" style="margin-top:30px">Рассылка всем игрокам</div>
     <textarea id="bctext" placeholder="Текст рассылки. Поддерживается HTML: <b>, <i>, <a href>"></textarea>
-    <button class="btn tinted" id="bcsend" style="width:100%;margin-top:12px">Отправить всем</button>
+    <div class="caption">Кнопки под сообщением</div>
+    <div id="bcbtns"></div>
+    <button class="btn" id="bcadd" style="width:100%;margin-top:8px">＋ Добавить кнопку</button>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn" id="bctest" style="flex:1">Тест себе</button>
+      <button class="btn tinted" id="bcsend" style="flex:1">Отправить всем</button>
+    </div>
     <p class="footnote">~20 сообщений в секунду. По окончании бот пришлёт отчёт.</p>
   </div>
 </section>
@@ -267,11 +273,41 @@ async function refund(p) {
   catch (e) { hud(e.message, false); }
 }
 
-$('bcsend').onclick = () => {
+/* кнопки рассылки */
+const BC_KINDS = [['app', 'Открыть приложение'], ['shop', 'Магазин'], ['myservers', 'Мои серверы'], ['friends', 'Друзья'], ['missions', 'Миссии'], ['rewards', 'Награды'], ['url', 'Ссылка']];
+let bcButtons = [];
+function renderBcButtons() {
+  const box = $('bcbtns'); box.innerHTML = '';
+  bcButtons.forEach((b, i) => {
+    const text = el('input', { placeholder: 'Текст кнопки, например: 🛒 Open Shop', value: b.text, maxlength: 64 });
+    text.oninput = () => b.text = text.value;
+    const kind = el('select', {}); BC_KINDS.forEach(([v, t]) => kind.append(el('option', { value: v, selected: b.kind === v ? '' : false }, t)));
+    kind.onchange = () => { b.kind = kind.value; renderBcButtons(); };
+    const url = el('input', { placeholder: 'https://…', value: b.url || '', autocapitalize: 'off' }); url.oninput = () => b.url = url.value;
+    const row = el('label', { class: 'cell field noicon' }, el('span', {}, 'В ряд с предыдущей'), (() => { const l = el('label', { class: 'sw' }); const c = el('input', { type: 'checkbox' }); c.checked = !!b.same_row; c.onchange = () => b.same_row = c.checked; l.append(c, el('span')); return l; })());
+    const del = el('button', { class: 'pill', style: 'color:var(--red)' }, 'Удалить'); del.onclick = () => { bcButtons.splice(i, 1); renderBcButtons(); };
+    const st = 'width:100%;border:0;background:none;outline:none;font-size:16px;color:var(--label)';
+    text.setAttribute('style', st); url.setAttribute('style', st); kind.setAttribute('style', 'border:0;background:none;color:var(--blue);font:inherit;font-size:16px;outline:none;max-width:60%');
+    const g = el('div', { class: 'group', style: 'margin-top:8px' },
+      el('div', { class: 'cell noicon' }, text),
+      el('div', { class: 'cell field noicon' }, el('span', {}, 'Действие'), kind),
+      ...(b.kind === 'url' ? [el('div', { class: 'cell noicon' }, url)] : []),
+      ...(i > 0 ? [row] : []),
+      el('div', { class: 'cell noicon', style: 'justify-content:flex-end' }, del));
+    box.append(g);
+  });
+}
+$('bcadd').onclick = () => { if (bcButtons.length >= 12) return hud('Не больше 12 кнопок', false); bcButtons.push({ text: '', kind: 'app', url: '', same_row: false }); renderBcButtons(); };
+async function sendBc(test) {
   const text = $('bctext').value.trim(); if (!text) return hud('Введите текст', false);
-  const go = async () => { try { const r = await api('/api/admin/broadcast', 'POST', { text }); hud(`Отправляется: ${r.recipients}`); $('bctext').value = ''; } catch (e) { hud(e.message, false); } };
-  tg.showConfirm ? tg.showConfirm('Отправить сообщение всем игрокам?', ok => ok && go()) : go();
-};
+  try {
+    const r = await api('/api/admin/broadcast', 'POST', { text, buttons: bcButtons, test });
+    if (test) hud('Отправлено вам — проверьте в боте');
+    else { hud(`Отправляется: ${r.recipients}`); $('bctext').value = ''; bcButtons = []; renderBcButtons(); }
+  } catch (e) { hud(e.message, false); }
+}
+$('bctest').onclick = () => sendBc(true);
+$('bcsend').onclick = () => tg.showConfirm ? tg.showConfirm('Отправить сообщение всем игрокам?', ok => ok && sendBc(false)) : sendBc(false);
 
 
 /* ---------- поддержка ---------- */
