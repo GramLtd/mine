@@ -184,7 +184,7 @@ from .rules import REVISION as RULES_REV  # noqa: E402
 
 def require_accepted(user):
     """Покупки и вывод — только после явного принятия правил и политики конфиденциальности."""
-    if user.get("accepted_rev") != RULES_REV:
+    if not user.get("accepted_at"):  # принял хоть раз — достаточно, повторно не спрашиваем
         raise HTTPException(403, "Сначала примите правила и политику конфиденциальности")
 
 

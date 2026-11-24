@@ -335,7 +335,8 @@ def state(user, is_admin=False) -> dict:
         "is_admin": is_admin,
         "tutorial_done": bool(user.get("tutorial_done")),
         "bot": db.get_setting("bot_username", ""),
-        "accepted": user.get("accepted_rev") == RULES_REV,
+        # экран принятия показываем один раз: кто принял любую редакцию, повторно его не видит
+        "accepted": bool(user.get("accepted_at")),
         "rewards": rewards.current(user),
         "accrual": accrual_speed(),
     }
