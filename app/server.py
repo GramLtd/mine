@@ -729,6 +729,7 @@ class SettingsIn(BaseModel):
     nofee_price: float | None = None
     botohub_enabled: bool | None = None
     botohub_reward: float | None = None
+    botohub_max_op: int | None = None
     maintenance: bool | None = None
     maintenance_text: str | None = None
     reward_share: float | None = None
@@ -778,6 +779,8 @@ def a_set_settings(body: SettingsIn, _=Depends(admin)):
         db.set_setting("ref_bonus", max(0.0, body.ref_bonus))
     if body.botohub_enabled is not None:
         db.set_setting("botohub_enabled", "1" if body.botohub_enabled else "0")
+    if body.botohub_max_op is not None:
+        db.set_setting("botohub_max_op", max(1, min(10, body.botohub_max_op)))
     if body.botohub_reward is not None:
         db.set_setting("botohub_reward", max(0.0, body.botohub_reward))
     if body.maintenance is not None:

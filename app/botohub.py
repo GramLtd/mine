@@ -20,6 +20,11 @@ def enabled() -> bool:
     return bool(TOKEN) and db.get_setting("botohub_enabled", "1") == "1"
 
 
+def max_op() -> int:
+    """Сколько спонсоров запрашивать (как в официальном примере BotoHub — max_op: 3)."""
+    return max(1, min(10, int(float(db.get_setting("botohub_max_op", 3)))))
+
+
 def reward() -> float:
     return max(0.0, float(db.get_setting("botohub_reward", 0.1)))
 
@@ -31,7 +36,7 @@ async def tasks(user_id: int) -> list[dict]:
     try:
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=8)) as s:
             async with s.post(API, headers={"Auth": TOKEN, "Content-Type": "application/json"},
-                              json={"chat_id": user_id, "only_has_check": True}) as r:
+                              json={"chat_id": user_id, "max_op": max_op(), "only_has_check": True}) as r:
                 data = await r.json(content_type=None)
     except Exception as e:
         log.warning("BotoHub request failed: %s", e)
@@ -48,15 +53,18 @@ async def diagnose(user_id: int) -> dict:
     if not TOKEN:
         return {"ok": False, "problem": "BOTOHUB_TOKEN не задан в /opt/hashfan/.env (или бот не перезапущен после добавления)"}
     out = {"enabled_in_admin": db.get_setting("botohub_enabled", "1") == "1", "token_length": len(TOKEN)}
-    for only_check in (True, False):
+    variants = {"как в боте (max_op, только с проверкой)": {"max_op": max_op(), "only_has_check": True},
+                "max_op без фильтра": {"max_op": max_op()},
+                "без max_op": {"only_has_check": False}}
+    for name, extra in variants.items():
         try:
             async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as s:
                 async with s.post(API, headers={"Auth": TOKEN, "Content-Type": "application/json"},
-                                  json={"chat_id": user_id, "only_has_check": only_check}) as r:
+                                  json={"chat_id": user_id, **extra}) as r:
                     body = await r.text()
-                    out[f"only_has_check={only_check}"] = {"http": r.status, "body": body[:800]}
+                    out[name] = {"http": r.status, "body": body[:600]}
         except Exception as e:
-            out[f"only_has_check={only_check}"] = {"error": f"{type(e).__name__}: {e}"}
+            out[name] = {"error": f"{type(e).__name__}: {e}"}
     return out
 
 

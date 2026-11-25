@@ -122,6 +122,7 @@ def all_settings() -> dict:
         "maintenance": maintenance(),
         "botohub_enabled": db.get_setting("botohub_enabled", "1") == "1",
         "botohub_reward": float(db.get_setting("botohub_reward", 0.1)),
+        "botohub_max_op": int(float(db.get_setting("botohub_max_op", 3))),
         "botohub_token_set": bool(__import__("os").getenv("BOTOHUB_TOKEN", "").strip()),
         "maintenance_text": db.get_setting("maintenance_text", ""),
         "reward_share": float(db.get_setting("reward_share", 0.2)),
