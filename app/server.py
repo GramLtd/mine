@@ -185,7 +185,7 @@ async def missions(tg=Depends(current_user)):
     got, sponsors = db.bh_rewarded(user["id"]), []
     for task in await botohub.tasks(user["id"]):
         if task["resource_id"] not in got:
-            sponsors.append({"id": f"bh:{task['resource_id']}", "title": botohub.title(task["url"]), "reward": botohub.reward(),
+            sponsors.append({"id": f"bh:{task['resource_id']}", "title": botohub.title(task["url"], task["resource_id"]), "reward": botohub.reward(),
                              "url": task["url"], "done": False, "sponsor": True})
     return {"missions": [*sponsors,
         {"id": "daily", "title": t("Ежедневный бонус"), "reward": DAILY_BONUS,

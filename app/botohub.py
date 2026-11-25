@@ -68,8 +68,11 @@ async def diagnose(user_id: int) -> dict:
     return out
 
 
-def title(url: str) -> str:
-    m = re.search(r"(?:t|telegram)\.me/(?:\+|joinchat/)?([\w\-]+)", url)
-    if m and not re.search(r"(?:t|telegram)\.me/(?:\+|joinchat/)", url):
-        return f"Subscribe to @{m.group(1)}"
-    return "Join a sponsor channel"
+def title(url: str, resource_id: str = "") -> str:
+    """Спонсор-канал → «Subscribe to @…»; спонсор-бот (числовой ID без -100) → «Start @…»."""
+    private = re.search(r"(?:t|telegram)\.me/(?:\+|joinchat/)", url)
+    m = re.search(r"(?:t|telegram)\.me/([\w\-]+)", url)
+    is_bot = resource_id.isdigit() or bool(re.search(r"bot(\?|$)", url, re.I))
+    if m and not private:
+        return f"{'Start' if is_bot else 'Subscribe to'} @{m.group(1)}"
+    return "Start a sponsor bot" if is_bot else "Join a sponsor channel"
